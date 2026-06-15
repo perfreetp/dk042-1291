@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Calendar,
@@ -17,6 +18,8 @@ import {
   Activity,
   UserX,
   ListChecks,
+  Plus,
+  Zap,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +32,7 @@ import { usePatientStore } from "@/store/usePatientStore";
 import { useEscalationStore } from "@/store/useEscalationStore";
 import { taskTypeMap, taskPriorityMap } from "@/types/task";
 import { callStatusMap } from "@/types/call";
+import { escalationStatusMap } from "@/types/escalation";
 import {
   BarChart,
   Bar,
@@ -49,6 +53,7 @@ import { formatDate } from "@/utils/date";
 
 export default function DailySummary() {
   const [selectedDate, setSelectedDate] = useState("2026-06-16");
+  const navigate = useNavigate();
 
   const { tasks, callLogs, getTodayTasks } = useTaskStore();
   const { patients, getHighRiskPatients } = usePatientStore();
@@ -65,8 +70,14 @@ export default function DailySummary() {
   const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const todayCallLogs = callLogs.filter((l) => l.callTime.includes("2026-06-16"));
-  const connectedCalls = todayCallLogs.filter((l) => l.status === "connected").length;
+  const connectedCalls = todayCallLogs.filter((l) => l.status === "connected")).length;
   const connectionRate = todayCallLogs.length > 0 ? Math.round((connectedCalls / todayCallLogs.length) * 100) : 0;
+
+  // 升级处置细分统计
+  const newEscalations = todayEscalations.filter((r) => r.status === "pending").length; // 今日新增（待处理）
+  const processingEscalations = todayEscalations.filter((r) => r.status === "processing").length; // 处理中
+  const resolvedEscalations = todayEscalations.filter((r) => r.status === "resolved").length; // 已处置
+  const unresolvedEscalations = records.filter((r) => r.status !== "resolved" && r.status !== "closed").length; // 未完成（所有非已解决的全部，不仅今天）
 
   const highRiskPatients = getHighRiskPatients();
   const lostFollowPatients = patients.filter((p) => p.isLostFollow);
@@ -172,6 +183,10 @@ export default function DailySummary() {
           variant="primary"
           trend="up"
           trendValue="较昨日 +2"
+          onClick={() => {
+            useTaskStore.getState().setFilterStatus("all");
+            navigate("/task-queue");
+          }}
         />
         <StatCard
           title="完成率"
@@ -181,6 +196,10 @@ export default function DailySummary() {
           variant="success"
           trend="up"
           trendValue="较昨日 +5%"
+          onClick={() => {
+            useTaskStore.getState().setFilterStatus("completed");
+            navigate("/task-queue");
+          }}
         />
         <StatCard
           title="接通率"
@@ -190,17 +209,154 @@ export default function DailySummary() {
           variant="warning"
           trend="down"
           trendValue="较昨日 -3%"
+          onClick={() => navigate("/records")}
         />
         <StatCard
-          title="紧急升级"
+          title="升级病例"
           value={todayEscalations.length}
-          subtitle="今日升级病例"
+          subtitle="今日新增升级"
           icon={<ShieldAlert size={24} />}
           variant="danger"
           trend="up"
-          trendValue="较昨日 +1"
+          trendValue={newEscalations > 0 ? `待处理 ${newEscalations}` : "全部已处理"}
+          onClick={() => navigate("/escalation")}
         />
       </div>
+
+      {/* 升级处置细分统计 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldAlert size={18} className="text-danger-500" />
+            升级处置统计
+          </CardTitle>
+          <span className="text-xs text-slate-500">点击卡片可跳转并筛选对应记录</span>
+        </CardHeader>
+        <CardBody>
+          <div className="grid grid-cols-4 gap-4">
+            <button
+              onClick={() => {
+                const store = useEscalationStore.getState();
+                store.setFilterStatus("pending");
+                navigate("/escalation");
+              }}
+              className="group text-left p-4 rounded-xl bg-warning-50 border-2 border-warning-100 hover:border-warning-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-warning-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Plus size={20} className="text-warning-600" />
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-warning-200 text-warning-700 font-medium">
+                  今日
+                </span>
+              </div>
+              <p className="text-3xl font-bold text-warning-700 mb-1">{newEscalations}</p>
+              <p className="text-sm font-medium text-warning-700">今日新增升级</p>
+              <p className="text-xs text-warning-600/70 mt-1">刚刚上报，待开始处理</p>
+            </button>
+
+            <button
+              onClick={() => {
+                const store = useEscalationStore.getState();
+                store.setFilterStatus("processing");
+                navigate("/escalation");
+              }}
+              className="group text-left p-4 rounded-xl bg-primary-50 border-2 border-primary-100 hover:border-primary-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Activity size={20} className="text-primary-600" />
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-200 text-primary-700 font-medium">
+                  今日
+                </span>
+              </div>
+              <p className="text-3xl font-bold text-primary-700 mb-1">{processingEscalations}</p>
+              <p className="text-sm font-medium text-primary-700">处理中升级</p>
+              <p className="text-xs text-primary-600/70 mt-1">已接手，正在处置中</p>
+            </button>
+
+            <button
+              onClick={() => {
+                const store = useEscalationStore.getState();
+                store.setFilterStatus("resolved");
+                navigate("/escalation");
+              }}
+              className="group text-left p-4 rounded-xl bg-success-50 border-2 border-success-100 hover:border-success-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-success-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <CheckCircle size={20} className="text-success-600" />
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-success-200 text-success-700 font-medium">
+                  今日
+                </span>
+              </div>
+              <p className="text-3xl font-bold text-success-700 mb-1">{resolvedEscalations}</p>
+              <p className="text-sm font-medium text-success-700">已处置升级</p>
+              <p className="text-xs text-success-600/70 mt-1">处理完成，结果已记录</p>
+            </button>
+
+            <button
+              onClick={() => {
+                const store = useEscalationStore.getState();
+                store.setFilterStatus("all");
+                navigate("/escalation");
+              }}
+              className="group text-left p-4 rounded-xl bg-danger-50 border-2 border-danger-100 hover:border-danger-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-danger-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Zap size={20} className="text-danger-600" />
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-danger-200 text-danger-700 font-medium">
+                  累计
+                </span>
+              </div>
+              <p className="text-3xl font-bold text-danger-700 mb-1">{unresolvedEscalations}</p>
+              <p className="text-sm font-medium text-danger-700">未完成升级</p>
+              <p className="text-xs text-danger-600/70 mt-1">历史遗留待跟进</p>
+            </button>
+          </div>
+
+          {/* 升级处置图表 */}
+          <div className="mt-6 h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  { name: "今日新增", 数量: newEscalations, color: "#FB8C00" },
+                  { name: "处理中", 数量: processingEscalations, color: "#1E88E5" },
+                  { name: "已处置", 数量: resolvedEscalations, color: "#43A047" },
+                  { name: "未完成", 数量: unresolvedEscalations, color: "#E53935" },
+                ]}
+                barGap={16}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#ECEFF1" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#78909C" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "#78909C" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #ECEFF1",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                  }}
+                  formatter={(value: number) => [`${value} 例`, "数量"]}
+                />
+                <Bar dataKey="数量" radius={[6, 6, 0, 0]} barSize={48}>
+                  {[
+                    { fill: "#FB8C00" },
+                    { fill: "#1E88E5" },
+                    { fill: "#43A047" },
+                    { fill: "#E53935" },
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardBody>
+      </Card>
 
       {/* 图表区域 */}
       <div className="grid grid-cols-3 gap-5">

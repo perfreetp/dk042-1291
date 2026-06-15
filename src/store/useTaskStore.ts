@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import type { Task, TaskStatus, TaskPriority, TaskType } from "@/types/task";
+import type { Task, TaskStatus, TaskPriority, TaskType, AssignHistoryItem, SmsRecord } from "@/types/task";
 import { mockTasks } from "@/mock/tasks";
 import type { CallLog } from "@/types/call";
 import { mockCallLogs } from "@/mock/callLogs";
+import { loadState, saveState } from "@/lib/persist";
+import { generateId } from "@/lib/utils";
 
 interface TaskStore {
   tasks: Task[];
@@ -33,11 +35,16 @@ interface TaskStore {
   updateCallLog: (callLogId: string, updates: Partial<CallLog>) => void;
   batchAssignTasks: (taskIds: string[], assignedTo: string, assignedName: string) => void;
   batchMarkSmsSent: (taskIds: string[]) => void;
+  resetToDefaults: () => void;
 }
 
-export const useTaskStore = create<TaskStore>((set, get) => ({
-  tasks: mockTasks,
-  callLogs: mockCallLogs,
+export const useTaskStore = create<TaskStore>((set, get) => {
+  const initialTasks = loadState<Task[]>("tasks", mockTasks);
+  const initialCallLogs = loadState<CallLog[]>("callLogs", mockCallLogs);
+
+  return {
+  tasks: initialTasks,
+  callLogs: initialCallLogs,
   selectedTask: null,
   filterStatus: "all",
   filterPriority: "all",
@@ -45,7 +52,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   searchKeyword: "",
   loading: false,
 
-  setTasks: (tasks) => set({ tasks }),
+  setTasks: (tasks) => {
+    set({ tasks });
+    saveState("tasks", tasks);
+  },
   setSelectedTask: (task) => set({ selectedTask: task }),
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterPriority: (priority) => set({ filterPriority: priority }),
@@ -99,31 +109,31 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   updateTaskStatus: (taskId, status) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId ? { ...t, status, updateTime: new Date().toISOString() } : t
-      ),
-    }));
+    const newTasks = get().tasks.map((t) =>
+      t.id === taskId ? { ...t, status, updateTime: new Date().toISOString() } : t
+    );
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
 
   updateTask: (taskId, updates) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId ? { ...t, ...updates, updateTime: new Date().toISOString() } : t
-      ),
-    }));
+    const newTasks = get().tasks.map((t) =>
+      t.id === taskId ? { ...t, ...updates, updateTime: new Date().toISOString() } : t
+    );
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
 
   addTask: (task) => {
-    set((state) => ({
-      tasks: [...state.tasks, task],
-    }));
+    const newTasks = [...get().tasks, task];
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
 
   addCallLog: (callLog) => {
-    set((state) => ({
-      callLogs: [...state.callLogs, callLog],
-    }));
+    const newCallLogs = [...get().callLogs, callLog];
+    set({ callLogs: newCallLogs });
+    saveState("callLogs", newCallLogs);
   },
 
   getCallLogsByTaskId: (taskId) => {
@@ -133,38 +143,73 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   incrementRetryCount: (taskId) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId ? { ...t, retryCount: t.retryCount + 1, updateTime: new Date().toISOString() } : t
-      ),
-    }));
+    const newTasks = get().tasks.map((t) =>
+      t.id === taskId ? { ...t, retryCount: t.retryCount + 1, updateTime: new Date().toISOString() } : t
+    );
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
 
   updateCallLog: (callLogId, updates) => {
-    set((state) => ({
-      callLogs: state.callLogs.map((c) =>
-        c.id === callLogId ? { ...c, ...updates } : c
-      ),
-    }));
+    const newCallLogs = get().callLogs.map((c) =>
+      c.id === callLogId ? { ...c, ...updates } : c
+    );
+    set({ callLogs: newCallLogs });
+    saveState("callLogs", newCallLogs);
   },
 
   batchAssignTasks: (taskIds, assignedTo, assignedName) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        taskIds.includes(t.id)
-          ? { ...t, assignedTo, assignedName, updateTime: new Date().toISOString() }
-          : t
-      ),
-    }));
+    const now = new Date().toISOString();
+    const newTasks = get().tasks.map((t) => {
+      if (!taskIds.includes(t.id)) return t;
+      const historyItem: AssignHistoryItem = {
+        id: generateId("AH"),
+        assignedAt: now,
+        assignedTo,
+        assignedName,
+        assignedBy: "N001",
+        assignedByName: "李护士",
+      };
+      const prevHistory = t.assignHistory || [];
+      return {
+        ...t,
+        assignedTo,
+        assignedName,
+        assignHistory: [...prevHistory, historyItem],
+        updateTime: now,
+      };
+    });
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
 
   batchMarkSmsSent: (taskIds) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        taskIds.includes(t.id)
-          ? { ...t, smsSent: true, smsSentTime: new Date().toISOString(), updateTime: new Date().toISOString() }
-          : t
-      ),
-    }));
+    const now = new Date().toISOString();
+    const newTasks = get().tasks.map((t) => {
+      if (!taskIds.includes(t.id)) return t;
+      const smsRecord: SmsRecord = {
+        id: generateId("SMS"),
+        sentAt: now,
+        content: t.description,
+        sentBy: "N001",
+        sentByName: "李护士",
+      };
+      const prevHistory = t.smsHistory || [];
+      return {
+        ...t,
+        smsSent: true,
+        smsSendTime: now,
+        smsHistory: [...prevHistory, smsRecord],
+        updateTime: now,
+      };
+    });
+    set({ tasks: newTasks });
+    saveState("tasks", newTasks);
   },
-}));
+
+  resetToDefaults: () => {
+    set({ tasks: mockTasks, callLogs: mockCallLogs });
+    saveState("tasks", mockTasks);
+    saveState("callLogs", mockCallLogs);
+  },
+}});

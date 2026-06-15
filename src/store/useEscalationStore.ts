@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { EscalationRecord, EscalationLevel, EscalationStatus } from "@/types/escalation";
 import { mockEscalationRecords, generateEmergencyCode } from "@/mock/escalation";
+import { loadState, saveState } from "@/lib/persist";
+import { generateId } from "@/lib/utils";
 
 interface EscalationStore {
   records: EscalationRecord[];
@@ -18,21 +20,28 @@ interface EscalationStore {
   getRecordsByPatientId: (patientId: string) => EscalationRecord[];
   getPendingRecords: () => EscalationRecord[];
   getTodayRecords: () => EscalationRecord[];
-  addRecord: (record: Omit<EscalationRecord, "id" | "emergencyCode" | "createTime">) => void;
+  addRecord: (record: Omit<EscalationRecord, "id" | "emergencyCode" | "createTime">) => EscalationRecord;
   updateRecordStatus: (id: string, status: EscalationStatus, handler?: string, handlerName?: string) => void;
   updateRecord: (id: string, updates: Partial<EscalationRecord>) => void;
   escalateLevel: (id: string, newLevel: EscalationLevel, reason: string) => void;
   getNightShiftRecords: () => EscalationRecord[];
+  resetToDefaults: () => void;
 }
 
-export const useEscalationStore = create<EscalationStore>((set, get) => ({
-  records: mockEscalationRecords,
+export const useEscalationStore = create<EscalationStore>((set, get) => {
+  const initialRecords = loadState<EscalationRecord[]>("escalationRecords", mockEscalationRecords);
+
+  return {
+  records: initialRecords,
   selectedRecord: null,
   filterStatus: "all",
   filterLevel: "all",
   loading: false,
 
-  setRecords: (records) => set({ records }),
+  setRecords: (records) => {
+    set({ records });
+    saveState("escalationRecords", records);
+  },
   setSelectedRecord: (record) => set({ selectedRecord: record }),
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterLevel: (level) => set({ filterLevel: level }),
@@ -77,53 +86,59 @@ export const useEscalationStore = create<EscalationStore>((set, get) => ({
   addRecord: (record) => {
     const newRecord: EscalationRecord = {
       ...record,
-      id: `E${Date.now()}`,
+      id: generateId("E"),
       emergencyCode: generateEmergencyCode(),
       createTime: new Date().toISOString(),
     };
-    set((state) => ({
-      records: [newRecord, ...state.records],
-    }));
+    const newRecords = [newRecord, ...get().records];
+    set({ records: newRecords });
+    saveState("escalationRecords", newRecords);
+    return newRecord;
   },
 
   updateRecordStatus: (id, status, handler, handlerName) => {
-    set((state) => ({
-      records: state.records.map((r) => {
-        if (r.id !== id) return r;
-        const updates: Partial<EscalationRecord> = { status };
-        if (handler) updates.handler = handler;
-        if (handlerName) updates.handlerName = handlerName;
-        if (status === "processing") updates.handleTime = new Date().toISOString();
-        if (status === "resolved") updates.resolveTime = new Date().toISOString();
-        return { ...r, ...updates };
-      }),
-    }));
+    const newRecords = get().records.map((r) => {
+      if (r.id !== id) return r;
+      const updates: Partial<EscalationRecord> = { status };
+      if (handler) updates.handler = handler;
+      if (handlerName) updates.handlerName = handlerName;
+      if (status === "processing") updates.handleTime = new Date().toISOString();
+      if (status === "resolved") updates.resolveTime = new Date().toISOString();
+      return { ...r, ...updates };
+    });
+    set({ records: newRecords });
+    saveState("escalationRecords", newRecords);
   },
 
   updateRecord: (id, updates) => {
-    set((state) => ({
-      records: state.records.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    }));
+    const newRecords = get().records.map((r) => (r.id === id ? { ...r, ...updates } : r));
+    set({ records: newRecords });
+    saveState("escalationRecords", newRecords);
   },
 
   escalateLevel: (id, newLevel, reason) => {
-    set((state) => ({
-      records: state.records.map((r) => {
-        if (r.id !== id) return r;
-        return {
-          ...r,
-          level: newLevel,
-          reason: r.reason + "；" + reason,
-          status: "pending",
-          handler: undefined,
-          handlerName: undefined,
-          handleTime: undefined,
-        };
-      }),
-    }));
+    const newRecords = get().records.map((r) => {
+      if (r.id !== id) return r;
+      return {
+        ...r,
+        level: newLevel,
+        reason: r.reason + "；" + reason,
+        status: "pending",
+        handler: undefined,
+        handlerName: undefined,
+        handleTime: undefined,
+      };
+    });
+    set({ records: newRecords });
+    saveState("escalationRecords", newRecords);
   },
 
   getNightShiftRecords: () => {
     return get().records.filter((r) => r.isNightShift);
   },
-}));
+
+  resetToDefaults: () => {
+    set({ records: mockEscalationRecords });
+    saveState("escalationRecords", mockEscalationRecords);
+  },
+}});

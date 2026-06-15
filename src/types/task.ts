@@ -12,6 +12,23 @@ export type TaskStatus = "pending" | "processing" | "completed" | "escalated" | 
 
 export type TaskPriority = "urgent" | "high" | "medium" | "low";
 
+export interface SmsRecord {
+  id: string;
+  sentAt: string;
+  content: string;
+  sentBy: string;
+  sentByName: string;
+}
+
+export interface AssignHistoryItem {
+  id: string;
+  assignedAt: string;
+  assignedTo: string;
+  assignedName: string;
+  assignedBy: string;
+  assignedByName: string;
+}
+
 export interface Task {
   id: string;
   patientId: string;
@@ -32,6 +49,8 @@ export interface Task {
   relatedNormalRange?: string;
   smsSent?: boolean;
   smsSendTime?: string;
+  smsHistory?: SmsRecord[];
+  assignHistory?: AssignHistoryItem[];
   patient?: Patient;
 }
 

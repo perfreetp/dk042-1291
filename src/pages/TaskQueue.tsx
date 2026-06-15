@@ -8,27 +8,38 @@ import {
   PhoneCall,
   RefreshCw,
   Download,
-  MoreHorizontal,
   AlertTriangle,
   Calendar,
   UserX,
   Clock,
-  CheckCircle,
-  XCircle,
   ArrowUpRight,
+  X,
+  User,
+  MessageSquare,
+  ShieldAlert,
+  History,
+  UserPlus,
+  Mail,
+  FileText,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
 import { Badge } from "@/components/ui/Status";
-import { Input, Select } from "@/components/ui/Input";
+import { Drawer } from "@/components/ui/Drawer";
 import { TaskCard } from "@/components/business/TaskCard";
 import { useTaskStore } from "@/store/useTaskStore";
+import { usePatientStore } from "@/store/usePatientStore";
+import { useEscalationStore } from "@/store/useEscalationStore";
 import { taskTypeMap, taskStatusMap, taskPriorityMap } from "@/types/task";
-import { cn } from "@/lib/utils";
+import { callStatusMap, callResultMap } from "@/types/call";
+import { escalationLevelMap, escalationStatusMap } from "@/types/escalation";
+import { cn, generateId } from "@/lib/utils";
 import { formatDateTime, getRemainingTime } from "@/utils/date";
+import type { Task } from "@/types/task";
 
 type ViewMode = "card" | "list";
+type DetailTab = "info" | "sms" | "call" | "escalation" | "history";
 
 export default function TaskQueue() {
   const navigate = useNavigate();
@@ -37,6 +48,9 @@ export default function TaskQueue() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState("");
   const [selectedAssigneeName, setSelectedAssigneeName] = useState("");
+  const [showDetail, setShowDetail] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("info");
 
   const {
     tasks,
@@ -53,7 +67,12 @@ export default function TaskQueue() {
     incrementRetryCount,
     batchAssignTasks,
     batchMarkSmsSent,
+    getTaskById,
+    getCallLogsByTaskId,
   } = useTaskStore();
+
+  const { getPatientById } = usePatientStore();
+  const { getRecordsByTaskId } = useEscalationStore();
 
   const filteredTasks = getFilteredTasks();
   const pendingCount = tasks.filter((t) => t.status === "pending").length;
@@ -61,8 +80,15 @@ export default function TaskQueue() {
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const escalatedCount = tasks.filter((t) => t.status === "escalated").length;
 
+  const selectedTask = selectedTaskId ? getTaskById(selectedTaskId) : null;
+  const selectedPatient = selectedTask ? getPatientById(selectedTask.patientId) : null;
+  const taskCallLogs = selectedTaskId ? getCallLogsByTaskId(selectedTaskId) : [];
+  const taskEscalations = selectedTaskId ? getRecordsByTaskId(selectedTaskId) : [];
+
   const handleTaskClick = (taskId: string) => {
-    navigate(`/callback?taskId=${taskId}`);
+    setSelectedTaskId(taskId);
+    setDetailTab("info");
+    setShowDetail(true);
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -111,6 +137,14 @@ export default function TaskQueue() {
     { key: "processing", label: "处理中", count: processingCount, color: "text-primary-600" },
     { key: "completed", label: "已完成", count: completedCount, color: "text-success-600" },
     { key: "escalated", label: "已升级", count: escalatedCount, color: "text-danger-600" },
+  ];
+
+  const detailTabs: { key: DetailTab; label: string; icon: React.ReactNode }[] = [
+    { key: "info", label: "患者信息", icon: <User size={16} /> },
+    { key: "sms", label: "短信记录", icon: <Mail size={16} /> },
+    { key: "call", label: "回访记录", icon: <PhoneCall size={16} /> },
+    { key: "escalation", label: "升级记录", icon: <ShieldAlert size={16} /> },
+    { key: "history", label: "变更历史", icon: <History size={16} /> },
   ];
 
   return (
@@ -167,7 +201,6 @@ export default function TaskQueue() {
       <Card padding="none">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
-            {/* 搜索框 */}
             <div className="relative max-w-xs flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
@@ -179,7 +212,6 @@ export default function TaskQueue() {
               />
             </div>
 
-            {/* 优先级筛选 */}
             <div className="relative">
               <select
                 value={filterPriority}
@@ -195,7 +227,6 @@ export default function TaskQueue() {
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
             </div>
 
-            {/* 类型筛选 */}
             <div className="relative">
               <select
                 value={filterType}
@@ -219,7 +250,6 @@ export default function TaskQueue() {
             </button>
           </div>
 
-          {/* 视图切换 */}
           <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
             <button
               onClick={() => setViewMode("card")}
@@ -251,7 +281,6 @@ export default function TaskQueue() {
           </div>
         </div>
 
-        {/* 批量操作栏 */}
         {selectedTasks.length > 0 && (
           <div className="px-4 py-3 bg-primary-50 border-b border-primary-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -286,7 +315,6 @@ export default function TaskQueue() {
 
         <CardBody>
           {viewMode === "card" ? (
-            /* 卡片视图 */
             <div className="grid grid-cols-2 gap-4">
               {filteredTasks.map((task) => (
                 <div key={task.id} className="relative">
@@ -303,7 +331,6 @@ export default function TaskQueue() {
               ))}
             </div>
           ) : (
-            /* 列表视图 */
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -420,7 +447,7 @@ export default function TaskQueue() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleTaskClick(task.id);
+                                navigate(`/callback?taskId=${task.id}`);
                               }}
                               className="p-1.5 text-slate-400 hover:text-success-600 hover:bg-success-50 rounded-lg transition-colors"
                               title="开始回访"
@@ -447,7 +474,7 @@ export default function TaskQueue() {
         </CardBody>
       </Card>
 
-      {/* 分页（简单展示） */}
+      {/* 分页 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
           共 <span className="font-medium text-slate-700">{filteredTasks.length}</span> 条任务
@@ -544,6 +571,449 @@ export default function TaskQueue() {
           </div>
         </div>
       )}
+
+      {/* 任务详情侧栏 */}
+      <Drawer
+        open={showDetail}
+        onClose={() => setShowDetail(false)}
+        title="任务详情"
+        width="560px"
+      >
+        {selectedTask && selectedPatient && (
+          <div className="space-y-5">
+            {/* 任务和患者概要 */}
+            <div className="p-4 bg-gradient-to-br from-primary-50 to-white rounded-xl border border-primary-100">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
+                    {selectedPatient.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800 text-lg">{selectedPatient.name}</h3>
+                    <p className="text-sm text-slate-500">
+                      孕{selectedPatient.gestationalWeek}周{selectedPatient.gestationalDay}天 · {selectedPatient.phone}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-full",
+                    taskStatusMap[selectedTask.status].bgColor,
+                    taskStatusMap[selectedTask.status].color
+                  )}
+                >
+                  {taskStatusMap[selectedTask.status].label}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-slate-500">任务编号</p>
+                  <p className="font-mono font-medium text-slate-700">{selectedTask.id}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">任务类型</p>
+                  <p className={cn("font-medium", taskTypeMap[selectedTask.taskType].color)}>
+                    {taskTypeMap[selectedTask.taskType].label}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500">优先级</p>
+                  <p className="font-medium text-slate-700">{taskPriorityMap[selectedTask.priority].label}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">负责人</p>
+                  <p className="font-medium text-slate-700">{selectedTask.assignedName}</p>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-primary-100">
+                <p className="text-sm text-slate-500 mb-1">任务说明</p>
+                <p className="text-sm text-slate-700">{selectedTask.description}</p>
+              </div>
+            </div>
+
+            {/* Tab 切换 */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+              {detailTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setDetailTab(tab.key)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors",
+                    detailTab === tab.key
+                      ? "bg-white text-primary-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {tab.icon}
+                  {tab.label}
+                  {tab.key === "sms" && selectedTask.smsHistory && selectedTask.smsHistory.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded-full">
+                      {selectedTask.smsHistory.length}
+                    </span>
+                  )}
+                  {tab.key === "call" && taskCallLogs.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded-full">
+                      {taskCallLogs.length}
+                    </span>
+                  )}
+                  {tab.key === "escalation" && taskEscalations.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-danger-100 text-danger-700 rounded-full">
+                      {taskEscalations.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab 内容 - 患者信息 */}
+            {detailTab === "info" && (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <User size={16} className="text-primary-500" />
+                    基本信息
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl text-sm">
+                    <div>
+                      <p className="text-slate-500 mb-1">姓名</p>
+                      <p className="font-medium text-slate-700">{selectedPatient.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">性别</p>
+                      <p className="font-medium text-slate-700">{selectedPatient.gender}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">年龄</p>
+                      <p className="font-medium text-slate-700">{selectedPatient.age}岁</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">手机号</p>
+                      <p className="font-medium text-slate-700">{selectedPatient.phone}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-slate-500 mb-1">身份证号</p>
+                      <p className="font-medium text-slate-700 font-mono">{selectedPatient.idCard}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <Calendar size={16} className="text-primary-500" />
+                    孕期信息
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl text-sm">
+                    <div>
+                      <p className="text-slate-500 mb-1">孕周</p>
+                      <p className="font-medium text-slate-700">
+                        {selectedPatient.gestationalWeek}周{selectedPatient.gestationalDay}天
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">预产期</p>
+                      <p className="font-medium text-slate-700">{selectedPatient.expectedDate}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">高危等级</p>
+                      <p className="font-medium text-danger-600">{selectedPatient.riskLevel}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">档案编号</p>
+                      <p className="font-medium text-slate-700 font-mono">{selectedPatient.patientNo}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-warning-500" />
+                    高危因素
+                  </h4>
+                  <div className="p-4 bg-warning-50 rounded-xl border border-warning-100">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPatient.riskFactors.map((factor, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 text-xs bg-white text-warning-700 rounded-md border border-warning-200"
+                        >
+                          {factor}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 内容 - 短信记录 */}
+            {detailTab === "sms" && (
+              <div className="space-y-3">
+                {selectedTask.smsHistory && selectedTask.smsHistory.length > 0 ? (
+                  selectedTask.smsHistory.map((sms) => (
+                    <div
+                      key={sms.id}
+                      className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-success-100 flex items-center justify-center">
+                            <Mail size={14} className="text-success-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-700">{sms.sentByName}</p>
+                            <p className="text-xs text-slate-500">{formatDateTime(sms.sentAt)}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-success-100 text-success-700">
+                          已发送
+                        </span>
+                      </div>
+                      <div className="mt-2 p-3 bg-white rounded-lg border border-slate-100">
+                        <p className="text-sm text-slate-700">{sms.content}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-16 text-center">
+                    <Mail size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500">暂无短信记录</p>
+                    <p className="text-sm text-slate-400 mt-1">可在列表勾选任务后点击「发送短信」</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 内容 - 回访记录 */}
+            {detailTab === "call" && (
+              <div className="space-y-3">
+                {taskCallLogs.length > 0 ? (
+                  taskCallLogs.map((log) => {
+                    const statusInfo = callStatusMap[log.status];
+                    const resultInfo = callResultMap[log.result];
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                              <PhoneCall size={14} className="text-primary-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-700">{log.callerName}</p>
+                              <p className="text-xs text-slate-500">
+                                {formatDateTime(log.callTime)} · 通话 {Math.floor(log.duration / 60)}分
+                                {log.duration % 60}秒
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo.bgColor, statusInfo.color)}>
+                              {statusInfo.label}
+                            </span>
+                            <span className={cn("text-xs px-2 py-0.5 rounded-full bg-slate-100", resultInfo.color)}>
+                              {resultInfo.label}
+                            </span>
+                          </div>
+                        </div>
+                        {log.note && (
+                          <div className="mt-2 p-3 bg-white rounded-lg border border-slate-100">
+                            <p className="text-xs text-slate-500 mb-1">通话记录</p>
+                            <p className="text-sm text-slate-700">{log.note}</p>
+                          </div>
+                        )}
+                        {log.familyJoined && (
+                          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                            <UserPlus size={12} />
+                            家属共同接听：{log.familyName}（{log.familyRelation}）
+                          </div>
+                        )}
+                        {log.nextFollowUpTime && (
+                          <div className="mt-2 flex items-center gap-1.5 text-xs text-primary-600">
+                            <Clock size={12} />
+                            下次随访时间：{formatDateTime(log.nextFollowUpTime)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-16 text-center">
+                    <PhoneCall size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500">暂无回访记录</p>
+                    <p className="text-sm text-slate-400 mt-1">点击「开始回访」处理此任务</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 内容 - 升级记录 */}
+            {detailTab === "escalation" && (
+              <div className="space-y-3">
+                {taskEscalations.length > 0 ? (
+                  taskEscalations.map((record) => {
+                    const levelInfo = escalationLevelMap[record.level];
+                    const statusInfo = escalationStatusMap[record.status];
+                    return (
+                      <div
+                        key={record.id}
+                        className="p-4 bg-danger-50/50 rounded-xl border border-danger-100"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-danger-100 flex items-center justify-center">
+                              <ShieldAlert size={14} className="text-danger-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-700">
+                                {levelInfo.label}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {record.reporterName} 上报 · {formatDateTime(record.createTime)}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo.bgColor, statusInfo.color)}>
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                        <div className="mt-2 p-3 bg-white rounded-lg border border-danger-100">
+                          <p className="text-xs text-slate-500 mb-1">升级原因</p>
+                          <p className="text-sm text-danger-700">{record.reason}</p>
+                        </div>
+                        {record.result && (
+                          <div className="mt-2 p-3 bg-success-50 rounded-lg border border-success-100">
+                            <p className="text-xs text-slate-500 mb-1">处置结果</p>
+                            <p className="text-sm text-success-700">{record.result}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-16 text-center">
+                    <ShieldAlert size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500">暂无升级记录</p>
+                    <p className="text-sm text-slate-400 mt-1">该任务暂未升级处置</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 内容 - 变更历史 */}
+            {detailTab === "history" && (
+              <div className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <UserPlus size={16} className="text-primary-500" />
+                    负责人变更
+                  </h4>
+                  {selectedTask.assignHistory && selectedTask.assignHistory.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedTask.assignHistory.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                            <User size={14} className="text-primary-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-700">
+                                由 <span className="font-medium">{item.assignedByName}</span> 分配给{" "}
+                                <span className="font-medium text-primary-600">{item.assignedName}</span>
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {formatDateTime(item.assignedAt)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center p-4 bg-slate-50 rounded-xl">
+                      <UserPlus size={32} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-500">暂无负责人变更记录</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <FileText size={16} className="text-primary-500" />
+                    任务时间线
+                  </h4>
+                  <div className="space-y-0">
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-success-500 mt-1.5" />
+                        <div className="w-0.5 flex-1 bg-slate-200 my-1 min-h-[24px]" />
+                      </div>
+                      <div className="pb-3">
+                        <p className="text-sm font-medium text-slate-700">任务创建</p>
+                        <p className="text-xs text-slate-500">{formatDateTime(selectedTask.createTime)}</p>
+                      </div>
+                    </div>
+                    {selectedTask.smsSent && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 rounded-full bg-primary-500 mt-1.5" />
+                          <div className="w-0.5 flex-1 bg-slate-200 my-1 min-h-[24px]" />
+                        </div>
+                        <div className="pb-3">
+                          <p className="text-sm font-medium text-slate-700">短信已发送</p>
+                          <p className="text-xs text-slate-500">
+                            {selectedTask.smsSendTime ? formatDateTime(selectedTask.smsSendTime) : ""}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-slate-300 mt-1.5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">最后更新</p>
+                        <p className="text-xs text-slate-500">{formatDateTime(selectedTask.updateTime)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 底部操作栏 */}
+            <div className="pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  fullWidth
+                  icon={<ArrowUpRight size={16} />}
+                  onClick={() => {
+                    setShowDetail(false);
+                    navigate("/records");
+                  }}
+                >
+                  回访记录
+                </Button>
+                <Button
+                  fullWidth
+                  icon={<PhoneCall size={16} />}
+                  onClick={() => {
+                    setShowDetail(false);
+                    navigate(`/callback?taskId=${selectedTask.id}`);
+                  }}
+                >
+                  去回访
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

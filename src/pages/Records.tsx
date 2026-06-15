@@ -25,11 +25,13 @@ import { Textarea, Input, Select } from "@/components/ui/Input";
 import { Timeline } from "@/components/business/Timeline";
 import { useTaskStore } from "@/store/useTaskStore";
 import { usePatientStore } from "@/store/usePatientStore";
+import { useEscalationStore } from "@/store/useEscalationStore";
 import { taskTypeMap, taskStatusMap } from "@/types/task";
 import { callStatusMap, callResultMap } from "@/types/call";
 import { formatDateTime, formatDuration, formatPhone } from "@/utils/date";
-import { cn } from "@/lib/utils";
+import { cn, generateId } from "@/lib/utils";
 import type { CallLog, CallResult } from "@/types/call";
+import type { Task } from "@/types/task";
 
 type TabType = "all" | "completed" | "missed" | "escalated";
 
@@ -50,8 +52,9 @@ export default function Records() {
     abnormalItems: [] as string[],
   });
 
-  const { callLogs, tasks, updateCallLog, updateTask, getTaskById } = useTaskStore();
+  const { callLogs, tasks, updateCallLog, updateTask, getTaskById, addTask } = useTaskStore();
   const { patients, getPatientById } = usePatientStore();
+  const { addRecord } = useEscalationStore();
 
   const selectedRecord = selectedRecordId ? callLogs.find((c) => c.id === selectedRecordId) : null;
 
@@ -98,6 +101,7 @@ export default function Records() {
 
     // 更新对应任务状态
     const log = callLogs.find((c) => c.id === selectedRecordId);
+    let createdTaskId: string | null = null;
     if (log) {
       const task = getTaskById(log.taskId);
       if (task) {
@@ -110,10 +114,65 @@ export default function Records() {
           taskStatus = "failed";
         }
         updateTask(task.id, { status: taskStatus });
+
+        // 场景1：结果为「已升级」 → 自动生成升级处置记录
+        if (fillForm.result === "escalated") {
+          const escalateReason = fillForm.abnormalItems.length > 0
+            ? `回访发现异常：${fillForm.abnormalItems.join("、")}${fillForm.note ? "。" + fillForm.note : ""}`
+            : (fillForm.note || "回访后需医生介入处理");
+
+          addRecord({
+            taskId: task.id,
+            patientId: task.patientId,
+            level: task.priority === "urgent" ? "level2" : "level1",
+            reason: escalateReason,
+            reporter: log.caller,
+            reporterName: log.callerName,
+            status: "pending",
+            description: fillForm.note,
+          });
+        }
+
+        // 场景2：填了下次随访时间 → 在任务队列中生成后续跟进任务
+        if (fillForm.nextFollowUpTime) {
+          const triggerDate = new Date(fillForm.nextFollowUpTime);
+          const deadlineDate = new Date(triggerDate.getTime() + 24 * 60 * 60 * 1000); // 次日为截止
+
+          const nextTask: Task = {
+            id: generateId("T"),
+            patientId: task.patientId,
+            taskType: "follow_up",
+            priority: fillForm.result === "pending" ? "high" : "medium",
+            status: "pending",
+            triggerTime: triggerDate.toISOString(),
+            deadline: deadlineDate.toISOString(),
+            retryCount: 0,
+            maxRetryCount: 3,
+            assignedTo: task.assignedTo,
+            assignedName: task.assignedName,
+            description: `常规随访跟进（上次回访安排：${fillForm.note || "持续关注"}）`,
+            createTime: new Date().toISOString(),
+            updateTime: new Date().toISOString(),
+            patient: task.patient,
+          };
+          addTask(nextTask);
+          createdTaskId = nextTask.id;
+        }
       }
     }
 
     setShowFillForm(false);
+
+    // 提示
+    if (fillForm.result === "escalated" && fillForm.nextFollowUpTime) {
+      alert("已创建升级处置记录，并生成后续随访任务");
+    } else if (fillForm.result === "escalated") {
+      alert("已创建升级处置记录");
+    } else if (fillForm.nextFollowUpTime) {
+      alert("已保存，并生成后续随访任务");
+    } else {
+      alert("保存成功");
+    }
   };
 
   const handleToggleAbnormal = (item: string) => {
