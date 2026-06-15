@@ -30,6 +30,9 @@ interface TaskStore {
   addCallLog: (callLog: CallLog) => void;
   getCallLogsByTaskId: (taskId: string) => CallLog[];
   incrementRetryCount: (taskId: string) => void;
+  updateCallLog: (callLogId: string, updates: Partial<CallLog>) => void;
+  batchAssignTasks: (taskIds: string[], assignedTo: string, assignedName: string) => void;
+  batchMarkSmsSent: (taskIds: string[]) => void;
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -133,6 +136,34 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) =>
         t.id === taskId ? { ...t, retryCount: t.retryCount + 1, updateTime: new Date().toISOString() } : t
+      ),
+    }));
+  },
+
+  updateCallLog: (callLogId, updates) => {
+    set((state) => ({
+      callLogs: state.callLogs.map((c) =>
+        c.id === callLogId ? { ...c, ...updates } : c
+      ),
+    }));
+  },
+
+  batchAssignTasks: (taskIds, assignedTo, assignedName) => {
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        taskIds.includes(t.id)
+          ? { ...t, assignedTo, assignedName, updateTime: new Date().toISOString() }
+          : t
+      ),
+    }));
+  },
+
+  batchMarkSmsSent: (taskIds) => {
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        taskIds.includes(t.id)
+          ? { ...t, smsSent: true, smsSentTime: new Date().toISOString(), updateTime: new Date().toISOString() }
+          : t
       ),
     }));
   },

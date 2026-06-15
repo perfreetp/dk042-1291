@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/Input";
 import { Timeline } from "@/components/business/Timeline";
 import { useEscalationStore } from "@/store/useEscalationStore";
 import { usePatientStore } from "@/store/usePatientStore";
+import { useTaskStore } from "@/store/useTaskStore";
 import { escalationLevelMap, escalationStatusMap } from "@/types/escalation";
 import { formatDateTime, formatRelativeTime } from "@/utils/date";
 import { cn } from "@/lib/utils";
@@ -36,15 +37,18 @@ type TabType = "pending" | "processing" | "resolved" | "all";
 export default function Escalation() {
   const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [showDetail, setShowDetail] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<EscalationRecord | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [handleNote, setHandleNote] = useState("");
   const [showEscalateModal, setShowEscalateModal] = useState(false);
   const [escalateLevel, setEscalateLevel] = useState<EscalationLevel>("level2");
   const [escalateReason, setEscalateReason] = useState("");
 
-  const { records, updateRecordStatus, escalateLevel: doEscalate, getPendingRecords, getTodayRecords } =
+  const { records, updateRecordStatus, escalateLevel: doEscalate, getPendingRecords, getTodayRecords, getRecordById, updateRecord } =
     useEscalationStore();
   const { getPatientById } = usePatientStore();
+  const { updateTask, getTaskById } = useTaskStore();
+
+  const selectedRecord = selectedRecordId ? getRecordById(selectedRecordId) : null;
 
   const pendingCount = records.filter((r) => r.status === "pending").length;
   const processingCount = records.filter((r) => r.status === "processing").length;
@@ -58,28 +62,48 @@ export default function Escalation() {
     .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
 
   const handleViewDetail = (record: EscalationRecord) => {
-    setSelectedRecord(record);
+    setSelectedRecordId(record.id);
+    if (record.status === "processing") {
+      setHandleNote(record.result || "");
+    } else {
+      setHandleNote("");
+    }
     setShowDetail(true);
   };
 
   const handleStartProcess = (record: EscalationRecord) => {
     updateRecordStatus(record.id, "processing", "D001", "陈医生");
-    setSelectedRecord({ ...record, status: "processing", handler: "D001", handlerName: "陈医生" });
+    setSelectedRecordId(record.id);
   };
 
   const handleResolve = () => {
-    if (selectedRecord) {
-      updateRecordStatus(selectedRecord.id, "resolved");
-      setShowDetail(false);
+    if (!selectedRecordId) return;
+
+    // 更新升级记录的状态和处置结果
+    updateRecord(selectedRecordId, {
+      status: "resolved",
+      result: handleNote,
+      resolveTime: new Date().toISOString(),
+    });
+
+    // 同步更新对应任务状态
+    const record = getRecordById(selectedRecordId);
+    if (record?.taskId) {
+      const task = getTaskById(record.taskId);
+      if (task) {
+        updateTask(record.taskId, { status: "completed" });
+      }
     }
+
+    setShowDetail(false);
   };
 
   const handleEscalate = () => {
-    if (selectedRecord) {
-      doEscalate(selectedRecord.id, escalateLevel, escalateReason);
-      setShowEscalateModal(false);
-      setEscalateReason("");
-    }
+    if (!selectedRecordId) return;
+
+    doEscalate(selectedRecordId, escalateLevel, escalateReason);
+    setShowEscalateModal(false);
+    setEscalateReason("");
   };
 
   const tabs = [

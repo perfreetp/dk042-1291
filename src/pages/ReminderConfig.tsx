@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   Calendar,
@@ -26,6 +26,7 @@ import { useConfigStore } from "@/store/useConfigStore";
 import { reminderRuleTypeMap } from "@/types/config";
 import { taskPriorityMap } from "@/types/task";
 import { cn } from "@/lib/utils";
+import type { ReminderRule, AbnormalThreshold } from "@/types/config";
 
 const iconMap = {
   Calendar,
@@ -48,6 +49,37 @@ export default function ReminderConfig() {
   const [showThresholdDrawer, setShowThresholdDrawer] = useState(false);
   const [editingThreshold, setEditingThreshold] = useState<string | null>(null);
 
+  // 规则表单状态
+  const [ruleForm, setRuleForm] = useState<Partial<ReminderRule>>({
+    ruleName: "",
+    ruleType: "prenatal_check",
+    priority: "medium",
+    advanceDays: 1,
+    maxRetryCount: 3,
+    retryInterval: 120,
+    triggerCondition: "",
+    smsTemplate: "",
+    callScript: "",
+    description: "",
+    enabled: true,
+  });
+
+  // 阈值表单状态
+  const [thresholdForm, setThresholdForm] = useState<Partial<AbnormalThreshold>>({
+    indicatorName: "",
+    indicatorCode: "",
+    unit: "",
+    normalMin: 0,
+    normalMax: 0,
+    warningMin: 0,
+    warningMax: 0,
+    criticalMin: 0,
+    criticalMax: 0,
+    priority: "high",
+    description: "",
+    enabled: true,
+  });
+
   const {
     reminderRules,
     abnormalThresholds,
@@ -57,26 +89,105 @@ export default function ReminderConfig() {
     deleteThreshold,
     getRuleById,
     getThresholdById,
+    addRule,
+    updateRule,
+    addThreshold,
+    updateThreshold,
   } = useConfigStore();
 
   const handleEditRule = (ruleId: string) => {
+    const rule = getRuleById(ruleId);
+    if (rule) {
+      setRuleForm(rule);
+    }
     setEditingRule(ruleId);
     setShowRuleDrawer(true);
   };
 
   const handleAddRule = () => {
+    setRuleForm({
+      ruleName: "",
+      ruleType: "prenatal_check",
+      priority: "medium",
+      advanceDays: 1,
+      maxRetryCount: 3,
+      retryInterval: 120,
+      triggerCondition: "",
+      smsTemplate: "",
+      callScript: "",
+      description: "",
+      enabled: true,
+    });
     setEditingRule(null);
     setShowRuleDrawer(true);
   };
 
+  const handleSaveRule = () => {
+    if (!ruleForm.ruleName) {
+      alert("请输入规则名称");
+      return;
+    }
+
+    if (editingRule) {
+      updateRule(editingRule, ruleForm);
+    } else {
+      const newRule: ReminderRule = {
+        ...ruleForm as ReminderRule,
+        id: `R${Date.now()}`,
+        createTime: new Date().toISOString(),
+        updateTime: new Date().toISOString(),
+      };
+      addRule(newRule);
+    }
+    setShowRuleDrawer(false);
+  };
+
   const handleEditThreshold = (thresholdId: string) => {
+    const threshold = getThresholdById(thresholdId);
+    if (threshold) {
+      setThresholdForm(threshold);
+    }
     setEditingThreshold(thresholdId);
     setShowThresholdDrawer(true);
   };
 
   const handleAddThreshold = () => {
+    setThresholdForm({
+      indicatorName: "",
+      indicatorCode: "",
+      unit: "",
+      normalMin: 0,
+      normalMax: 0,
+      warningMin: 0,
+      warningMax: 0,
+      criticalMin: 0,
+      criticalMax: 0,
+      priority: "high",
+      description: "",
+      enabled: true,
+    });
     setEditingThreshold(null);
     setShowThresholdDrawer(true);
+  };
+
+  const handleSaveThreshold = () => {
+    if (!thresholdForm.indicatorName) {
+      alert("请输入指标名称");
+      return;
+    }
+
+    if (editingThreshold) {
+      updateThreshold(editingThreshold, thresholdForm);
+    } else {
+      const newThreshold: AbnormalThreshold = {
+        ...thresholdForm as AbnormalThreshold,
+        id: `T${Date.now()}`,
+        createTime: new Date().toISOString(),
+        updateTime: new Date().toISOString(),
+      };
+      addThreshold(newThreshold);
+    }
+    setShowThresholdDrawer(false);
   };
 
   const currentRule = editingRule ? getRuleById(editingRule) : null;
@@ -341,7 +452,7 @@ export default function ReminderConfig() {
             <Button variant="outline" onClick={() => setShowRuleDrawer(false)}>
               取消
             </Button>
-            <Button onClick={() => setShowRuleDrawer(false)}>
+            <Button onClick={handleSaveRule}>
               {editingRule ? "保存修改" : "创建规则"}
             </Button>
           </div>
@@ -351,7 +462,8 @@ export default function ReminderConfig() {
           <Input
             label="规则名称"
             placeholder="请输入规则名称"
-            defaultValue={currentRule?.ruleName}
+            value={ruleForm.ruleName}
+            onChange={(e) => setRuleForm({ ...ruleForm, ruleName: e.target.value })}
           />
 
           <Select
@@ -360,7 +472,8 @@ export default function ReminderConfig() {
               value: key,
               label: val.label,
             }))}
-            defaultValue={currentRule?.ruleType}
+            value={ruleForm.ruleType}
+            onChange={(e) => setRuleForm({ ...ruleForm, ruleType: e.target.value as ReminderRule["ruleType"] })}
           />
 
           <Select
@@ -369,7 +482,8 @@ export default function ReminderConfig() {
               value: key,
               label: val.label,
             }))}
-            defaultValue={currentRule?.priority}
+            value={ruleForm.priority}
+            onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value as ReminderRule["priority"] })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -377,13 +491,15 @@ export default function ReminderConfig() {
               label="提前天数"
               type="number"
               placeholder="0"
-              defaultValue={currentRule?.advanceDays}
+              value={ruleForm.advanceDays?.toString()}
+              onChange={(e) => setRuleForm({ ...ruleForm, advanceDays: Number(e.target.value) })}
             />
             <Input
               label="最大重试次数"
               type="number"
               placeholder="3"
-              defaultValue={currentRule?.maxRetryCount}
+              value={ruleForm.maxRetryCount?.toString()}
+              onChange={(e) => setRuleForm({ ...ruleForm, maxRetryCount: Number(e.target.value) })}
             />
           </div>
 
@@ -391,35 +507,40 @@ export default function ReminderConfig() {
             label="重试间隔（分钟）"
             type="number"
             placeholder="120"
-            defaultValue={currentRule?.retryInterval}
+            value={ruleForm.retryInterval?.toString()}
+            onChange={(e) => setRuleForm({ ...ruleForm, retryInterval: Number(e.target.value) })}
           />
 
           <Textarea
             label="触发条件"
             placeholder="描述触发规则的条件"
             rows={2}
-            defaultValue={currentRule?.triggerCondition}
+            value={ruleForm.triggerCondition}
+            onChange={(e) => setRuleForm({ ...ruleForm, triggerCondition: e.target.value })}
           />
 
           <Textarea
             label="短信模板"
             placeholder="请输入短信模板内容"
             rows={3}
-            defaultValue={currentRule?.smsTemplate}
+            value={ruleForm.smsTemplate}
+            onChange={(e) => setRuleForm({ ...ruleForm, smsTemplate: e.target.value })}
           />
 
           <Textarea
             label="通话脚本"
             placeholder="请输入通话脚本内容"
             rows={5}
-            defaultValue={currentRule?.callScript}
+            value={ruleForm.callScript}
+            onChange={(e) => setRuleForm({ ...ruleForm, callScript: e.target.value })}
           />
 
           <Textarea
             label="规则说明"
             placeholder="请输入规则说明"
             rows={2}
-            defaultValue={currentRule?.description}
+            value={ruleForm.description}
+            onChange={(e) => setRuleForm({ ...ruleForm, description: e.target.value })}
           />
 
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
@@ -427,7 +548,11 @@ export default function ReminderConfig() {
               <p className="text-sm font-medium text-slate-700">启用规则</p>
               <p className="text-xs text-slate-500">启用后规则将自动触发任务</p>
             </div>
-            <Switch checked={currentRule?.enabled ?? true} onChange={() => {}} />
+            <Switch
+              checked={ruleForm.enabled ?? true}
+              onChange={() => setRuleForm({ ...ruleForm, enabled: !ruleForm.enabled })}
+              size="md"
+            />
           </div>
         </div>
       </Drawer>
@@ -443,7 +568,7 @@ export default function ReminderConfig() {
             <Button variant="outline" onClick={() => setShowThresholdDrawer(false)}>
               取消
             </Button>
-            <Button onClick={() => setShowThresholdDrawer(false)}>
+            <Button onClick={handleSaveThreshold}>
               {editingThreshold ? "保存修改" : "创建阈值"}
             </Button>
           </div>
@@ -454,19 +579,22 @@ export default function ReminderConfig() {
             <Input
               label="指标名称"
               placeholder="如：收缩压"
-              defaultValue={currentThreshold?.indicatorName}
+              value={thresholdForm.indicatorName}
+              onChange={(e) => setThresholdForm({ ...thresholdForm, indicatorName: e.target.value })}
             />
             <Input
               label="指标代码"
               placeholder="如：SBP"
-              defaultValue={currentThreshold?.indicatorCode}
+              value={thresholdForm.indicatorCode}
+              onChange={(e) => setThresholdForm({ ...thresholdForm, indicatorCode: e.target.value })}
             />
           </div>
 
           <Input
             label="单位"
             placeholder="如：mmHg"
-            defaultValue={currentThreshold?.unit}
+            value={thresholdForm.unit}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, unit: e.target.value })}
           />
 
           <div className="p-4 bg-success-50/50 rounded-lg border border-success-100">
@@ -475,12 +603,14 @@ export default function ReminderConfig() {
               <Input
                 label="最小值"
                 type="number"
-                defaultValue={currentThreshold?.normalMin}
+                value={thresholdForm.normalMin?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, normalMin: Number(e.target.value) })}
               />
               <Input
                 label="最大值"
                 type="number"
-                defaultValue={currentThreshold?.normalMax}
+                value={thresholdForm.normalMax?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, normalMax: Number(e.target.value) })}
               />
             </div>
           </div>
@@ -491,12 +621,14 @@ export default function ReminderConfig() {
               <Input
                 label="预警最小值"
                 type="number"
-                defaultValue={currentThreshold?.warningMin}
+                value={thresholdForm.warningMin?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, warningMin: Number(e.target.value) })}
               />
               <Input
                 label="预警最大值"
                 type="number"
-                defaultValue={currentThreshold?.warningMax}
+                value={thresholdForm.warningMax?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, warningMax: Number(e.target.value) })}
               />
             </div>
           </div>
@@ -507,12 +639,14 @@ export default function ReminderConfig() {
               <Input
                 label="危急最小值"
                 type="number"
-                defaultValue={currentThreshold?.criticalMin}
+                value={thresholdForm.criticalMin?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, criticalMin: Number(e.target.value) })}
               />
               <Input
                 label="危急最大值"
                 type="number"
-                defaultValue={currentThreshold?.criticalMax}
+                value={thresholdForm.criticalMax?.toString()}
+                onChange={(e) => setThresholdForm({ ...thresholdForm, criticalMax: Number(e.target.value) })}
               />
             </div>
           </div>
@@ -523,14 +657,16 @@ export default function ReminderConfig() {
               value: key,
               label: val.label,
             }))}
-            defaultValue={currentThreshold?.priority}
+            value={thresholdForm.priority}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, priority: e.target.value as AbnormalThreshold["priority"] })}
           />
 
           <Textarea
             label="说明"
             placeholder="请输入指标说明"
             rows={2}
-            defaultValue={currentThreshold?.description}
+            value={thresholdForm.description}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, description: e.target.value })}
           />
 
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
@@ -538,7 +674,11 @@ export default function ReminderConfig() {
               <p className="text-sm font-medium text-slate-700">启用阈值</p>
               <p className="text-xs text-slate-500">启用后将自动监测异常指标</p>
             </div>
-            <Switch checked={currentThreshold?.enabled ?? true} onChange={() => {}} />
+            <Switch
+              checked={thresholdForm.enabled ?? true}
+              onChange={() => setThresholdForm({ ...thresholdForm, enabled: !thresholdForm.enabled })}
+              size="md"
+            />
           </div>
         </div>
       </Drawer>

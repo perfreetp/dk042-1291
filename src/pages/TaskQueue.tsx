@@ -34,6 +34,9 @@ export default function TaskQueue() {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("card");
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
+  const [selectedAssigneeName, setSelectedAssigneeName] = useState("");
 
   const {
     tasks,
@@ -48,6 +51,8 @@ export default function TaskQueue() {
     getFilteredTasks,
     updateTaskStatus,
     incrementRetryCount,
+    batchAssignTasks,
+    batchMarkSmsSent,
   } = useTaskStore();
 
   const filteredTasks = getFilteredTasks();
@@ -77,11 +82,27 @@ export default function TaskQueue() {
   };
 
   const handleBatchAssign = () => {
-    alert(`已选中 ${selectedTasks.length} 条任务，分配功能开发中...`);
+    setShowAssignModal(true);
+  };
+
+  const handleConfirmAssign = () => {
+    if (!selectedAssignee || !selectedAssigneeName) {
+      alert("请选择负责人");
+      return;
+    }
+    batchAssignTasks(selectedTasks, selectedAssignee, selectedAssigneeName);
+    setShowAssignModal(false);
+    setSelectedAssignee("");
+    setSelectedAssigneeName("");
   };
 
   const handleBatchSms = () => {
-    alert(`已选中 ${selectedTasks.length} 条任务，批量发送短信功能开发中...`);
+    if (selectedTasks.length === 0) {
+      alert("请先选择任务");
+      return;
+    }
+    batchMarkSmsSent(selectedTasks);
+    alert(`已为 ${selectedTasks.length} 条任务标记短信已发送`);
   };
 
   const statusTabs = [
@@ -447,6 +468,82 @@ export default function TaskQueue() {
           </button>
         </div>
       </div>
+
+      {/* 批量分配弹窗 */}
+      {showAssignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAssignModal(false)}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-[400px] animate-slide-up">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">批量分配任务</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              将选中的 <span className="font-medium text-primary-600">{selectedTasks.length}</span> 条任务分配给：
+            </p>
+
+            <div className="space-y-2 mb-6">
+              {[
+                { id: "N001", name: "李护士", role: "随访专员" },
+                { id: "N002", name: "王护士", role: "随访专员" },
+                { id: "D001", name: "陈医生", role: "主治医师" },
+                { id: "D002", name: "刘医生", role: "副主任医师" },
+              ].map((person) => (
+                <div
+                  key={person.id}
+                  onClick={() => {
+                    setSelectedAssignee(person.id);
+                    setSelectedAssigneeName(person.name);
+                  }}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                    selectedAssignee === person.id
+                      ? "border-primary-500 bg-primary-50"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center text-white font-medium",
+                      selectedAssignee === person.id ? "bg-primary-500" : "bg-slate-300"
+                    )}
+                  >
+                    {person.name.charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-800">{person.name}</p>
+                    <p className="text-xs text-slate-500">{person.role}</p>
+                  </div>
+                  {selectedAssignee === person.id && (
+                    <div className="w-5 h-5 rounded-full bg-primary-500 flex items-center justify-center">
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowAssignModal(false)}>
+                取消
+              </Button>
+              <Button onClick={handleConfirmAssign}>确认分配</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

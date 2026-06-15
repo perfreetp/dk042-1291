@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileText,
   Search,
@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
 import { Badge } from "@/components/ui/Status";
 import { Drawer } from "@/components/ui/Drawer";
-import { Textarea } from "@/components/ui/Input";
+import { Textarea, Input, Select } from "@/components/ui/Input";
 import { Timeline } from "@/components/business/Timeline";
 import { useTaskStore } from "@/store/useTaskStore";
 import { usePatientStore } from "@/store/usePatientStore";
@@ -29,21 +29,31 @@ import { taskTypeMap, taskStatusMap } from "@/types/task";
 import { callStatusMap, callResultMap } from "@/types/call";
 import { formatDateTime, formatDuration, formatPhone } from "@/utils/date";
 import { cn } from "@/lib/utils";
-import type { CallLog } from "@/types/call";
+import type { CallLog, CallResult } from "@/types/call";
 
 type TabType = "all" | "completed" | "missed" | "escalated";
 
 export default function Records() {
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [showDetail, setShowDetail] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<CallLog | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [showFillForm, setShowFillForm] = useState(false);
-  const [fillNote, setFillNote] = useState("");
 
-  const { callLogs, tasks } = useTaskStore();
+  // 补全记录表单
+  const [fillForm, setFillForm] = useState({
+    result: "confirmed" as CallResult,
+    note: "",
+    nextFollowUpTime: "",
+    familyJoined: false,
+    familyName: "",
+    familyRelation: "",
+    abnormalItems: [] as string[],
+  });
+
+  const { callLogs, tasks, updateCallLog, updateTask, getTaskById } = useTaskStore();
   const { patients, getPatientById } = usePatientStore();
 
-  const getTaskById = (taskId: string) => tasks.find((t) => t.id === taskId);
+  const selectedRecord = selectedRecordId ? callLogs.find((c) => c.id === selectedRecordId) : null;
 
   const filteredLogs = callLogs.filter((log) => {
     if (activeTab === "all") return true;
@@ -54,18 +64,65 @@ export default function Records() {
   });
 
   const handleViewDetail = (log: CallLog) => {
-    setSelectedRecord(log);
+    setSelectedRecordId(log.id);
     setShowDetail(true);
   };
 
   const handleFillRecord = (log: CallLog) => {
-    setSelectedRecord(log);
+    setSelectedRecordId(log.id);
+    setFillForm({
+      result: log.result,
+      note: log.note,
+      nextFollowUpTime: log.nextFollowUpTime || "",
+      familyJoined: log.familyJoined,
+      familyName: log.familyName || "",
+      familyRelation: log.familyRelation || "",
+      abnormalItems: [],
+    });
     setShowFillForm(true);
   };
 
   const handleSaveFill = () => {
-    alert("记录补全成功！");
+    if (!selectedRecordId) return;
+
+    // 更新通话记录
+    updateCallLog(selectedRecordId, {
+      result: fillForm.result,
+      note: fillForm.note,
+      nextFollowUpTime: fillForm.nextFollowUpTime || undefined,
+      familyJoined: fillForm.familyJoined,
+      familyName: fillForm.familyName || undefined,
+      familyRelation: fillForm.familyRelation || undefined,
+      status: fillForm.result === "confirmed" || fillForm.result === "pending" ? "connected" : "no_answer",
+    });
+
+    // 更新对应任务状态
+    const log = callLogs.find((c) => c.id === selectedRecordId);
+    if (log) {
+      const task = getTaskById(log.taskId);
+      if (task) {
+        let taskStatus = task.status;
+        if (fillForm.result === "confirmed") {
+          taskStatus = "completed";
+        } else if (fillForm.result === "escalated") {
+          taskStatus = "escalated";
+        } else if (fillForm.result === "failed") {
+          taskStatus = "failed";
+        }
+        updateTask(task.id, { status: taskStatus });
+      }
+    }
+
     setShowFillForm(false);
+  };
+
+  const handleToggleAbnormal = (item: string) => {
+    setFillForm((prev) => ({
+      ...prev,
+      abnormalItems: prev.abnormalItems.includes(item)
+        ? prev.abnormalItems.filter((i) => i !== item)
+        : [...prev.abnormalItems, item],
+    }));
   };
 
   const tabs = [
@@ -437,30 +494,39 @@ export default function Records() {
         title="回访详情"
         width="480px"
       >
-        {selectedRecord && selectedPatient && (
+        {selectedRecord && (
           <div className="space-y-5">
             {/* 患者信息 */}
             <div className="p-4 bg-slate-50 rounded-xl">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
-                  {selectedPatient.name.charAt(0)}
+                  {getPatientById(selectedRecord.patientId)?.name?.charAt(0) || "?"}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-800">{selectedPatient.name}</h3>
-                  <p className="text-sm text-slate-500">{selectedPatient.phone}</p>
+                  <h3 className="font-semibold text-slate-800">
+                    {getPatientById(selectedRecord.patientId)?.name || "未知患者"}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {getPatientById(selectedRecord.patientId)?.phone || ""}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-slate-400">孕周:</span>
                   <span className="ml-1 text-slate-700">
-                    {selectedPatient.gestationalWeek}周{selectedPatient.gestationalDay}天
+                    {getPatientById(selectedRecord.patientId)?.gestationalWeek}周
+                    {getPatientById(selectedRecord.patientId)?.gestationalDay}天
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400">风险等级:</span>
                   <span className="ml-1 text-slate-700">
-                    {selectedPatient.riskLevel === "high" ? "高危" : selectedPatient.riskLevel === "medium" ? "中危" : "低危"}
+                    {getPatientById(selectedRecord.patientId)?.riskLevel === "high"
+                      ? "高危"
+                      : getPatientById(selectedRecord.patientId)?.riskLevel === "medium"
+                      ? "中危"
+                      : "低危"}
                   </span>
                 </div>
               </div>
@@ -503,11 +569,20 @@ export default function Records() {
                   <span className="text-slate-500">处理人</span>
                   <span className="text-slate-700">{selectedRecord.callerName}</span>
                 </div>
+                {selectedRecord.nextFollowUpTime && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">下次随访时间</span>
+                    <span className="text-primary-600 font-medium">
+                      {formatDateTime(selectedRecord.nextFollowUpTime)}
+                    </span>
+                  </div>
+                )}
                 {selectedRecord.familyJoined && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">家属共同接听</span>
                     <span className="text-primary-600">
-                      {selectedRecord.familyName || "家属"}（{selectedRecord.familyRelation || "家属"}）
+                      {selectedRecord.familyName || "家属"}
+                      {selectedRecord.familyRelation ? `（${selectedRecord.familyRelation}）` : ""}
                     </span>
                   </div>
                 )}
@@ -530,7 +605,7 @@ export default function Records() {
               <div className="max-h-48 overflow-y-auto">
                 <Timeline
                   items={
-                    selectedTask
+                    getTaskById(selectedRecord.taskId)
                       ? [
                           {
                             id: "1",
@@ -575,7 +650,11 @@ export default function Records() {
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               回访结果
             </label>
-            <select className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20">
+            <select
+              value={fillForm.result}
+              onChange={(e) => setFillForm({ ...fillForm, result: e.target.value as CallResult })}
+              className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+            >
               <option value="confirmed">已确认</option>
               <option value="pending">待跟进</option>
               <option value="escalated">已升级</option>
@@ -591,8 +670,8 @@ export default function Records() {
             <Textarea
               placeholder="请详细记录回访内容..."
               rows={6}
-              value={fillNote}
-              onChange={(e) => setFillNote(e.target.value)}
+              value={fillForm.note}
+              onChange={(e) => setFillForm({ ...fillForm, note: e.target.value })}
             />
           </div>
 
@@ -603,6 +682,8 @@ export default function Records() {
               </label>
               <input
                 type="datetime-local"
+                value={fillForm.nextFollowUpTime}
+                onChange={(e) => setFillForm({ ...fillForm, nextFollowUpTime: e.target.value })}
                 className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
               />
             </div>
@@ -610,12 +691,43 @@ export default function Records() {
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 是否家属接听
               </label>
-              <select className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20">
+              <select
+                value={fillForm.familyJoined ? "yes" : "no"}
+                onChange={(e) =>
+                  setFillForm({ ...fillForm, familyJoined: e.target.value === "yes" })
+                }
+                className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+              >
                 <option value="no">否</option>
                 <option value="yes">是</option>
               </select>
             </div>
           </div>
+
+          {fillForm.familyJoined && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  家属姓名
+                </label>
+                <Input
+                  placeholder="请输入家属姓名"
+                  value={fillForm.familyName}
+                  onChange={(e) => setFillForm({ ...fillForm, familyName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  与患者关系
+                </label>
+                <Input
+                  placeholder="如：丈夫、母亲"
+                  value={fillForm.familyRelation}
+                  onChange={(e) => setFillForm({ ...fillForm, familyRelation: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -625,9 +737,19 @@ export default function Records() {
               {["血压异常", "血糖异常", "胎动异常", "腹痛", "阴道出血", "其他"].map((item) => (
                 <label
                   key={item}
-                  className="px-3 py-1.5 text-sm bg-slate-100 rounded-lg cursor-pointer hover:bg-primary-50 hover:text-primary-700 transition-colors"
+                  className={cn(
+                    "px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors",
+                    fillForm.abnormalItems.includes(item)
+                      ? "bg-primary-100 text-primary-700"
+                      : "bg-slate-100 hover:bg-primary-50 hover:text-primary-700"
+                  )}
                 >
-                  <input type="checkbox" className="mr-1.5" />
+                  <input
+                    type="checkbox"
+                    className="mr-1.5 hidden"
+                    checked={fillForm.abnormalItems.includes(item)}
+                    onChange={() => handleToggleAbnormal(item)}
+                  />
                   {item}
                 </label>
               ))}
