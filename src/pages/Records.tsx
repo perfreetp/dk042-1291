@@ -223,7 +223,7 @@ export default function Records() {
               <div>
                 <p className="text-sm text-slate-500">今日回访</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1">
-                  {callLogs.filter((l) => l.callTime.includes("2026-06-16")).length}
+                  {callLogs.filter((l) => l.callTime && l.callTime.includes("2026-06-16")).length}
                 </p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center">
@@ -365,7 +365,7 @@ export default function Records() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-slate-800">{patient?.name || "未知"}</span>
                             <Tag size="sm" variant={task ? (task.taskType === "abnormal_index" ? "danger" : "primary") : "default"}>
-                              {task ? taskTypeMap[task.taskType].label : "回访"}
+                              {task ? (taskTypeMap[task.taskType]?.label || task.taskType) : "回访"}
                             </Tag>
                             <Badge
                               variant={
@@ -377,18 +377,18 @@ export default function Records() {
                               }
                               dot
                             >
-                              {callResultMap[log.result].label}
+                              {callResultMap[log.result]?.label || log.result || "待处理"}
                             </Badge>
                           </div>
                           <p className="text-sm text-slate-500 mt-1">{formatPhone(patient?.phone || "")}</p>
-                          <p className="text-sm text-slate-600 mt-2 line-clamp-2">{log.note}</p>
+                          <p className="text-sm text-slate-600 mt-2 line-clamp-2">{log.note || "—"}</p>
                           <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
                             <span className="flex items-center gap-1">
                               <Clock size={12} />
-                              {formatDateTime(log.callTime, "MM-dd HH:mm")}
+                              {log.callTime ? formatDateTime(log.callTime, "MM-dd HH:mm") : "—"}
                             </span>
-                            <span>通话时长: {formatDuration(log.duration)}</span>
-                            <span>处理人: {log.callerName}</span>
+                            <span>通话时长: {log.duration !== undefined ? formatDuration(log.duration) : "—"}</span>
+                            <span>处理人: {log.callerName || "—"}</span>
                             {log.familyJoined && (
                               <span className="flex items-center gap-1 text-primary-500">
                                 <Users size={12} />
@@ -574,8 +574,9 @@ export default function Records() {
                 <div>
                   <span className="text-slate-400">孕周:</span>
                   <span className="ml-1 text-slate-700">
-                    {getPatientById(selectedRecord.patientId)?.gestationalWeek}周
-                    {getPatientById(selectedRecord.patientId)?.gestationalDay}天
+                    {getPatientById(selectedRecord.patientId)?.gestationalWeek !== undefined
+                      ? `${getPatientById(selectedRecord.patientId)?.gestationalWeek}周${getPatientById(selectedRecord.patientId)?.gestationalDay ?? 0}天`
+                      : "—"}
                   </span>
                 </div>
                 <div>
@@ -585,7 +586,9 @@ export default function Records() {
                       ? "高危"
                       : getPatientById(selectedRecord.patientId)?.riskLevel === "medium"
                       ? "中危"
-                      : "低危"}
+                      : getPatientById(selectedRecord.patientId)?.riskLevel === "low"
+                      ? "低危"
+                      : getPatientById(selectedRecord.patientId)?.riskLevel || "—"}
                   </span>
                 </div>
               </div>
@@ -607,26 +610,36 @@ export default function Records() {
                     }
                     dot
                   >
-                    {callStatusMap[selectedRecord.status].label}
+                    {callStatusMap[selectedRecord.status]?.label || selectedRecord.status || "未知"}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">通话结果</span>
-                  <span className={cn("font-medium", callResultMap[selectedRecord.result].color)}>
-                    {callResultMap[selectedRecord.result].label}
-                  </span>
+                  {callResultMap[selectedRecord.result] ? (
+                    <span className={cn("font-medium", callResultMap[selectedRecord.result].color)}>
+                      {callResultMap[selectedRecord.result].label}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-slate-700">
+                      {selectedRecord.result || "未填写"}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">通话时间</span>
-                  <span className="text-slate-700">{formatDateTime(selectedRecord.callTime)}</span>
+                  <span className="text-slate-700">
+                    {selectedRecord.callTime ? formatDateTime(selectedRecord.callTime) : "—"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">通话时长</span>
-                  <span className="text-slate-700">{formatDuration(selectedRecord.duration)}</span>
+                  <span className="text-slate-700">
+                    {selectedRecord.duration !== undefined ? formatDuration(selectedRecord.duration) : "—"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">处理人</span>
-                  <span className="text-slate-700">{selectedRecord.callerName}</span>
+                  <span className="text-slate-700">{selectedRecord.callerName || "—"}</span>
                 </div>
                 {selectedRecord.nextFollowUpTime && (
                   <div className="flex items-center justify-between text-sm">
@@ -663,19 +676,15 @@ export default function Records() {
               <h4 className="text-sm font-medium text-slate-700 mb-3">历史通话</h4>
               <div className="max-h-48 overflow-y-auto">
                 <Timeline
-                  items={
-                    getTaskById(selectedRecord.taskId)
-                      ? [
-                          {
-                            id: "1",
-                            title: "本次通话 - " + selectedRecord.callerName,
-                            description: selectedRecord.note,
-                            time: formatDateTime(selectedRecord.callTime, "MM-dd HH:mm"),
-                            type: selectedRecord.status === "connected" ? "success" : "warning",
-                          },
-                        ]
-                      : []
-                  }
+                  items={[
+                    {
+                      id: "1",
+                      title: "本次通话 - " + (selectedRecord.callerName || "—"),
+                      description: selectedRecord.note || "（无记录）",
+                      time: selectedRecord.callTime ? formatDateTime(selectedRecord.callTime, "MM-dd HH:mm") : "—",
+                      type: selectedRecord.status === "connected" ? "success" : "warning",
+                    },
+                  ]}
                 />
               </div>
             </div>

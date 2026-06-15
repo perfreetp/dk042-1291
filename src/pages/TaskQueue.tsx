@@ -579,30 +579,33 @@ export default function TaskQueue() {
         title="任务详情"
         width="560px"
       >
-        {selectedTask && selectedPatient && (
+        {selectedTask ? (
           <div className="space-y-5">
             {/* 任务和患者概要 */}
             <div className="p-4 bg-gradient-to-br from-primary-50 to-white rounded-xl border border-primary-100">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
-                    {selectedPatient.name.charAt(0)}
+                    {selectedPatient?.name?.charAt(0) || selectedTask.patient?.name?.charAt(0) || "?"}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-800 text-lg">{selectedPatient.name}</h3>
+                    <h3 className="font-semibold text-slate-800 text-lg">{selectedPatient?.name || selectedTask.patient?.name || "未知患者"}</h3>
                     <p className="text-sm text-slate-500">
-                      孕{selectedPatient.gestationalWeek}周{selectedPatient.gestationalDay}天 · {selectedPatient.phone}
+                      {selectedPatient
+                        ? `孕${selectedPatient.gestationalWeek ?? "-"}周${selectedPatient.gestationalDay ?? 0}天`
+                        : "—"}{" "}
+                      · {selectedPatient?.phone || selectedTask.patient?.phone || "无联系方式"}
                     </p>
                   </div>
                 </div>
                 <span
                   className={cn(
                     "text-xs font-medium px-2.5 py-1 rounded-full",
-                    taskStatusMap[selectedTask.status].bgColor,
-                    taskStatusMap[selectedTask.status].color
+                    taskStatusMap[selectedTask.status]?.bgColor || "bg-slate-100",
+                    taskStatusMap[selectedTask.status]?.color || "text-slate-600"
                   )}
                 >
-                  {taskStatusMap[selectedTask.status].label}
+                  {taskStatusMap[selectedTask.status]?.label || selectedTask.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -612,22 +615,24 @@ export default function TaskQueue() {
                 </div>
                 <div>
                   <p className="text-slate-500">任务类型</p>
-                  <p className={cn("font-medium", taskTypeMap[selectedTask.taskType].color)}>
-                    {taskTypeMap[selectedTask.taskType].label}
+                  <p className={cn("font-medium", taskTypeMap[selectedTask.taskType]?.color || "text-slate-600")}>
+                    {taskTypeMap[selectedTask.taskType]?.label || selectedTask.taskType}
                   </p>
                 </div>
                 <div>
                   <p className="text-slate-500">优先级</p>
-                  <p className="font-medium text-slate-700">{taskPriorityMap[selectedTask.priority].label}</p>
+                  <p className="font-medium text-slate-700">
+                    {taskPriorityMap[selectedTask.priority]?.label || selectedTask.priority}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-500">负责人</p>
-                  <p className="font-medium text-slate-700">{selectedTask.assignedName}</p>
+                  <p className="font-medium text-slate-700">{selectedTask.assignedName || "未分配"}</p>
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-primary-100">
                 <p className="text-sm text-slate-500 mb-1">任务说明</p>
-                <p className="text-sm text-slate-700">{selectedTask.description}</p>
+                <p className="text-sm text-slate-700">{selectedTask.description || "—"}</p>
               </div>
             </div>
 
@@ -676,23 +681,27 @@ export default function TaskQueue() {
                   <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl text-sm">
                     <div>
                       <p className="text-slate-500 mb-1">姓名</p>
-                      <p className="font-medium text-slate-700">{selectedPatient.name}</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.name || "—"}</p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">性别</p>
-                      <p className="font-medium text-slate-700">{selectedPatient.gender}</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.gender || "—"}</p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">年龄</p>
-                      <p className="font-medium text-slate-700">{selectedPatient.age}岁</p>
+                      <p className="font-medium text-slate-700">
+                        {selectedPatient?.age ? `${selectedPatient.age}岁` : "—"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">手机号</p>
-                      <p className="font-medium text-slate-700">{selectedPatient.phone}</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.phone || "—"}</p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-slate-500 mb-1">身份证号</p>
-                      <p className="font-medium text-slate-700 font-mono">{selectedPatient.idCard}</p>
+                      <p className="font-medium text-slate-700 font-mono">
+                        {selectedPatient?.idCard || "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -706,20 +715,26 @@ export default function TaskQueue() {
                     <div>
                       <p className="text-slate-500 mb-1">孕周</p>
                       <p className="font-medium text-slate-700">
-                        {selectedPatient.gestationalWeek}周{selectedPatient.gestationalDay}天
+                        {selectedPatient?.gestationalWeek !== undefined
+                          ? `${selectedPatient.gestationalWeek}周${selectedPatient.gestationalDay ?? 0}天`
+                          : "—"}
                       </p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">预产期</p>
-                      <p className="font-medium text-slate-700">{selectedPatient.expectedDate}</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.expectedDate || "—"}</p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">高危等级</p>
-                      <p className="font-medium text-danger-600">{selectedPatient.riskLevel}</p>
+                      <p className="font-medium text-danger-600">
+                        {selectedPatient?.riskLevel || "—"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-slate-500 mb-1">档案编号</p>
-                      <p className="font-medium text-slate-700 font-mono">{selectedPatient.patientNo}</p>
+                      <p className="font-medium text-slate-700 font-mono">
+                        {selectedPatient?.patientNo || "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -730,16 +745,20 @@ export default function TaskQueue() {
                     高危因素
                   </h4>
                   <div className="p-4 bg-warning-50 rounded-xl border border-warning-100">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPatient.riskFactors.map((factor, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2.5 py-1 text-xs bg-white text-warning-700 rounded-md border border-warning-200"
-                        >
-                          {factor}
-                        </span>
-                      ))}
-                    </div>
+                    {selectedPatient?.riskFactors && selectedPatient.riskFactors.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedPatient.riskFactors.map((factor, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 text-xs bg-white text-warning-700 rounded-md border border-warning-200"
+                          >
+                            {factor}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">暂无高危因素记录</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -760,8 +779,8 @@ export default function TaskQueue() {
                             <Mail size={14} className="text-success-600" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-700">{sms.sentByName}</p>
-                            <p className="text-xs text-slate-500">{formatDateTime(sms.sentAt)}</p>
+                            <p className="text-sm font-medium text-slate-700">{sms.sentByName || "系统"}</p>
+                            <p className="text-xs text-slate-500">{sms.sentAt ? formatDateTime(sms.sentAt) : "—"}</p>
                           </div>
                         </div>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-success-100 text-success-700">
@@ -769,7 +788,7 @@ export default function TaskQueue() {
                         </span>
                       </div>
                       <div className="mt-2 p-3 bg-white rounded-lg border border-slate-100">
-                        <p className="text-sm text-slate-700">{sms.content}</p>
+                        <p className="text-sm text-slate-700">{sms.content || "—"}</p>
                       </div>
                     </div>
                   ))
@@ -801,20 +820,22 @@ export default function TaskQueue() {
                               <PhoneCall size={14} className="text-primary-600" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-slate-700">{log.callerName}</p>
+                              <p className="text-sm font-medium text-slate-700">{log.callerName || "—"}</p>
                               <p className="text-xs text-slate-500">
-                                {formatDateTime(log.callTime)} · 通话 {Math.floor(log.duration / 60)}分
-                                {log.duration % 60}秒
+                                {log.callTime ? formatDateTime(log.callTime) : "—"} · 通话{" "}
+                                {log.duration !== undefined ? `${Math.floor(log.duration / 60)}分${log.duration % 60}秒` : "—"}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo.bgColor, statusInfo.color)}>
-                              {statusInfo.label}
+                            <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo?.bgColor || "bg-slate-100", statusInfo?.color || "text-slate-600")}>
+                              {statusInfo?.label || log.status}
                             </span>
-                            <span className={cn("text-xs px-2 py-0.5 rounded-full bg-slate-100", resultInfo.color)}>
-                              {resultInfo.label}
-                            </span>
+                            {resultInfo && (
+                              <span className={cn("text-xs px-2 py-0.5 rounded-full bg-slate-100", resultInfo.color)}>
+                                {resultInfo.label}
+                              </span>
+                            )}
                           </div>
                         </div>
                         {log.note && (
@@ -826,7 +847,7 @@ export default function TaskQueue() {
                         {log.familyJoined && (
                           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
                             <UserPlus size={12} />
-                            家属共同接听：{log.familyName}（{log.familyRelation}）
+                            家属共同接听：{log.familyName || "—"}（{log.familyRelation || "—"}）
                           </div>
                         )}
                         {log.nextFollowUpTime && (
@@ -867,20 +888,20 @@ export default function TaskQueue() {
                             </div>
                             <div>
                               <p className="text-sm font-medium text-slate-700">
-                                {levelInfo.label}
+                                {levelInfo?.label || record.level}
                               </p>
                               <p className="text-xs text-slate-500">
-                                {record.reporterName} 上报 · {formatDateTime(record.createTime)}
+                                {record.reporterName || "—"} 上报 · {record.createTime ? formatDateTime(record.createTime) : "—"}
                               </p>
                             </div>
                           </div>
-                          <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo.bgColor, statusInfo.color)}>
-                            {statusInfo.label}
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full", statusInfo?.bgColor || "bg-slate-100", statusInfo?.color || "text-slate-600")}>
+                            {statusInfo?.label || record.status}
                           </span>
                         </div>
                         <div className="mt-2 p-3 bg-white rounded-lg border border-danger-100">
                           <p className="text-xs text-slate-500 mb-1">升级原因</p>
-                          <p className="text-sm text-danger-700">{record.reason}</p>
+                          <p className="text-sm text-danger-700">{record.reason || "—"}</p>
                         </div>
                         {record.result && (
                           <div className="mt-2 p-3 bg-success-50 rounded-lg border border-success-100">
@@ -911,7 +932,7 @@ export default function TaskQueue() {
                   </h4>
                   {selectedTask.assignHistory && selectedTask.assignHistory.length > 0 ? (
                     <div className="space-y-2">
-                      {selectedTask.assignHistory.map((item, idx) => (
+                      {selectedTask.assignHistory.map((item) => (
                         <div
                           key={item.id}
                           className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl"
@@ -922,11 +943,11 @@ export default function TaskQueue() {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <p className="text-sm text-slate-700">
-                                由 <span className="font-medium">{item.assignedByName}</span> 分配给{" "}
-                                <span className="font-medium text-primary-600">{item.assignedName}</span>
+                                由 <span className="font-medium">{item.assignedByName || "系统"}</span> 分配给{" "}
+                                <span className="font-medium text-primary-600">{item.assignedName || "—"}</span>
                               </p>
                               <p className="text-xs text-slate-500">
-                                {formatDateTime(item.assignedAt)}
+                                {item.assignedAt ? formatDateTime(item.assignedAt) : "—"}
                               </p>
                             </div>
                           </div>
@@ -954,7 +975,7 @@ export default function TaskQueue() {
                       </div>
                       <div className="pb-3">
                         <p className="text-sm font-medium text-slate-700">任务创建</p>
-                        <p className="text-xs text-slate-500">{formatDateTime(selectedTask.createTime)}</p>
+                        <p className="text-xs text-slate-500">{selectedTask.createTime ? formatDateTime(selectedTask.createTime) : "—"}</p>
                       </div>
                     </div>
                     {selectedTask.smsSent && (
@@ -977,7 +998,7 @@ export default function TaskQueue() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-slate-700">最后更新</p>
-                        <p className="text-xs text-slate-500">{formatDateTime(selectedTask.updateTime)}</p>
+                        <p className="text-xs text-slate-500">{selectedTask.updateTime ? formatDateTime(selectedTask.updateTime) : "—"}</p>
                       </div>
                     </div>
                   </div>
@@ -1011,6 +1032,11 @@ export default function TaskQueue() {
                 </Button>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="py-16 text-center">
+            <ListTodo size={48} className="mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500">请选择一个任务查看详情</p>
           </div>
         )}
       </Drawer>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -43,8 +43,28 @@ export default function Escalation() {
   const [escalateLevel, setEscalateLevel] = useState<EscalationLevel>("level2");
   const [escalateReason, setEscalateReason] = useState("");
 
-  const { records, updateRecordStatus, escalateLevel: doEscalate, getPendingRecords, getTodayRecords, getRecordById, updateRecord } =
-    useEscalationStore();
+  // 让本地Tab和store.filterStatus双向同步，支持从日终汇总跳转
+  useEffect(() => {
+    if (filterStatus === "closed") return;
+    setActiveTab(filterStatus as TabType);
+  }, [filterStatus]);
+
+  const handleChangeTab = (tab: TabType) => {
+    setActiveTab(tab);
+    setFilterStatus(tab as EscalationStatus | "all");
+  };
+
+  const {
+    records,
+    filterStatus,
+    setFilterStatus,
+    updateRecordStatus,
+    escalateLevel: doEscalate,
+    getPendingRecords,
+    getTodayRecords,
+    getRecordById,
+    updateRecord,
+  } = useEscalationStore();
   const { getPatientById } = usePatientStore();
   const { updateTask, getTaskById } = useTaskStore();
 
@@ -205,7 +225,7 @@ export default function Escalation() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.key}
-                    onClick={() => setActiveTab(tab.key as TabType)}
+                    onClick={() => handleChangeTab(tab.key as TabType)}
                     className={cn(
                       "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                       activeTab === tab.key

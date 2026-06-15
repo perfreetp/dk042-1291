@@ -239,8 +239,17 @@ export default function ReminderConfig() {
         /* 提醒规则列表 */
         <div className="grid grid-cols-2 gap-5">
           {reminderRules.map((rule) => {
-            const typeInfo = reminderRuleTypeMap[rule.ruleType];
-            const priorityInfo = taskPriorityMap[rule.priority];
+            const typeInfo = reminderRuleTypeMap[rule.ruleType] || {
+              label: rule.ruleType || "自定义",
+              icon: "Settings",
+              color: "text-slate-600",
+              bgColor: "bg-slate-100",
+            };
+            const priorityInfo = taskPriorityMap[rule.priority] || {
+              label: rule.priority || "中",
+              color: "text-slate-600",
+              bgColor: "bg-slate-100",
+            };
             const Icon = iconMap[typeInfo.icon as keyof typeof iconMap] || Settings;
 
             return (
@@ -263,7 +272,7 @@ export default function ReminderConfig() {
                         <Icon size={22} className={typeInfo.color} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-slate-800">{rule.ruleName}</h3>
+                        <h3 className="font-semibold text-slate-800">{rule.ruleName || "未命名规则"}</h3>
                         <div className="flex items-center gap-2 mt-1">
                           <Tag size="sm" variant="info">
                             {typeInfo.label}
@@ -275,28 +284,28 @@ export default function ReminderConfig() {
                       </div>
                     </div>
                     <Switch
-                      checked={rule.enabled}
+                      checked={!!rule.enabled}
                       onChange={() => toggleRuleEnabled(rule.id)}
                       size="md"
                     />
                   </div>
 
                   <p className="text-sm text-slate-500 mb-4 line-clamp-2">
-                    {rule.description || rule.triggerCondition}
+                    {rule.description || rule.triggerCondition || "暂无说明"}
                   </p>
 
                   <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
                     <div>
                       <p className="text-slate-400 text-xs mb-1">提前天数</p>
-                      <p className="font-medium text-slate-700">{rule.advanceDays}天</p>
+                      <p className="font-medium text-slate-700">{rule.advanceDays ?? 0}天</p>
                     </div>
                     <div>
                       <p className="text-slate-400 text-xs mb-1">重试次数</p>
-                      <p className="font-medium text-slate-700">{rule.maxRetryCount}次</p>
+                      <p className="font-medium text-slate-700">{rule.maxRetryCount ?? 0}次</p>
                     </div>
                     <div>
                       <p className="text-slate-400 text-xs mb-1">重试间隔</p>
-                      <p className="font-medium text-slate-700">{rule.retryInterval}分钟</p>
+                      <p className="font-medium text-slate-700">{rule.retryInterval ?? 0}分钟</p>
                     </div>
                   </div>
 
@@ -363,7 +372,11 @@ export default function ReminderConfig() {
               </thead>
               <tbody>
                 {abnormalThresholds.map((threshold) => {
-                  const priorityInfo = taskPriorityMap[threshold.priority];
+                  const priorityInfo = taskPriorityMap[threshold.priority] || {
+                    label: threshold.priority || "中",
+                    color: "text-slate-600",
+                    bgColor: "bg-slate-100",
+                  };
                   return (
                     <tr
                       key={threshold.id}
@@ -375,24 +388,24 @@ export default function ReminderConfig() {
                             <Activity size={18} className="text-primary-500" />
                           </div>
                           <div>
-                            <p className="font-medium text-slate-800">{threshold.indicatorName}</p>
-                            <p className="text-xs text-slate-400">{threshold.indicatorCode}</p>
+                            <p className="font-medium text-slate-800">{threshold.indicatorName || "未命名指标"}</p>
+                            <p className="text-xs text-slate-400">{threshold.indicatorCode || "—"}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-4 px-5">
                         <span className="text-sm text-success-600 font-medium">
-                          {threshold.normalMin} - {threshold.normalMax} {threshold.unit}
+                          {threshold.normalMin ?? 0} - {threshold.normalMax ?? 0} {threshold.unit || ""}
                         </span>
                       </td>
                       <td className="py-4 px-5">
                         <span className="text-sm text-warning-600 font-medium">
-                          {threshold.warningMin} - {threshold.warningMax} {threshold.unit}
+                          {threshold.warningMin ?? 0} - {threshold.warningMax ?? 0} {threshold.unit || ""}
                         </span>
                       </td>
                       <td className="py-4 px-5">
                         <span className="text-sm text-danger-600 font-medium">
-                          {threshold.criticalMin} - {threshold.criticalMax} {threshold.unit}
+                          {threshold.criticalMin ?? 0} - {threshold.criticalMax ?? 0} {threshold.unit || ""}
                         </span>
                       </td>
                       <td className="py-4 px-5">
@@ -411,7 +424,7 @@ export default function ReminderConfig() {
                       </td>
                       <td className="py-4 px-5">
                         <Switch
-                          checked={threshold.enabled}
+                          checked={!!threshold.enabled}
                           onChange={() => toggleThresholdEnabled(threshold.id)}
                           size="sm"
                         />

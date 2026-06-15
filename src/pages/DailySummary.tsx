@@ -69,8 +69,8 @@ export default function DailySummary() {
   const totalCount = todayTasks.length;
   const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const todayCallLogs = callLogs.filter((l) => l.callTime.includes("2026-06-16"));
-  const connectedCalls = todayCallLogs.filter((l) => l.status === "connected")).length;
+  const todayCallLogs = callLogs.filter((l) => l.callTime && l.callTime.includes("2026-06-16"));
+  const connectedCalls = todayCallLogs.filter((l) => l.status === "connected").length;
   const connectionRate = todayCallLogs.length > 0 ? Math.round((connectedCalls / todayCallLogs.length) * 100) : 0;
 
   // 升级处置细分统计
