@@ -21,6 +21,7 @@ import {
   UserPlus,
   Mail,
   FileText,
+  Activity,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -34,6 +35,7 @@ import { useEscalationStore } from "@/store/useEscalationStore";
 import { taskTypeMap, taskStatusMap, taskPriorityMap } from "@/types/task";
 import { callStatusMap, callResultMap } from "@/types/call";
 import { escalationLevelMap, escalationStatusMap } from "@/types/escalation";
+import { riskLevelMap } from "@/types/patient";
 import { cn, generateId } from "@/lib/utils";
 import { formatDateTime, getRemainingTime } from "@/utils/date";
 import type { Task } from "@/types/task";
@@ -684,10 +686,6 @@ export default function TaskQueue() {
                       <p className="font-medium text-slate-700">{selectedPatient?.name || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500 mb-1">性别</p>
-                      <p className="font-medium text-slate-700">{selectedPatient?.gender || "—"}</p>
-                    </div>
-                    <div>
                       <p className="text-slate-500 mb-1">年龄</p>
                       <p className="font-medium text-slate-700">
                         {selectedPatient?.age ? `${selectedPatient.age}岁` : "—"}
@@ -697,11 +695,9 @@ export default function TaskQueue() {
                       <p className="text-slate-500 mb-1">手机号</p>
                       <p className="font-medium text-slate-700">{selectedPatient?.phone || "—"}</p>
                     </div>
-                    <div className="col-span-2">
-                      <p className="text-slate-500 mb-1">身份证号</p>
-                      <p className="font-medium text-slate-700 font-mono">
-                        {selectedPatient?.idCard || "—"}
-                      </p>
+                    <div>
+                      <p className="text-slate-500 mb-1">预产期</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.expectedDate || "—"}</p>
                     </div>
                   </div>
                 </div>
@@ -721,20 +717,18 @@ export default function TaskQueue() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-500 mb-1">预产期</p>
-                      <p className="font-medium text-slate-700">{selectedPatient?.expectedDate || "—"}</p>
-                    </div>
-                    <div>
                       <p className="text-slate-500 mb-1">高危等级</p>
-                      <p className="font-medium text-danger-600">
-                        {selectedPatient?.riskLevel || "—"}
+                      <p className={cn("font-medium", riskLevelMap[selectedPatient?.riskLevel ?? "low"]?.color || "text-slate-600")}>
+                        {riskLevelMap[selectedPatient?.riskLevel ?? "low"]?.label || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-500 mb-1">档案编号</p>
-                      <p className="font-medium text-slate-700 font-mono">
-                        {selectedPatient?.patientNo || "—"}
-                      </p>
+                      <p className="text-slate-500 mb-1">上次产检</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.lastVisitTime || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">下次产检</p>
+                      <p className="font-medium text-primary-600">{selectedPatient?.nextVisitTime || "—"}</p>
                     </div>
                   </div>
                 </div>
@@ -742,25 +736,83 @@ export default function TaskQueue() {
                 <div>
                   <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
                     <AlertTriangle size={16} className="text-warning-500" />
-                    高危因素
+                    高危类型
                   </h4>
                   <div className="p-4 bg-warning-50 rounded-xl border border-warning-100">
-                    {selectedPatient?.riskFactors && selectedPatient.riskFactors.length > 0 ? (
+                    {selectedPatient?.highRiskType && selectedPatient.highRiskType.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
-                        {selectedPatient.riskFactors.map((factor, idx) => (
+                        {selectedPatient.highRiskType.map((type, idx) => (
                           <span
                             key={idx}
                             className="px-2.5 py-1 text-xs bg-white text-warning-700 rounded-md border border-warning-200"
                           >
-                            {factor}
+                            {type}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500">暂无高危因素记录</p>
+                      <p className="text-sm text-slate-500">暂无高危类型记录</p>
                     )}
                   </div>
                 </div>
+
+                {selectedPatient?.abnormalIndicators && selectedPatient.abnormalIndicators.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                      <Activity size={16} className="text-danger-500" />
+                      异常指标
+                    </h4>
+                    <div className="p-4 bg-danger-50 rounded-xl border border-danger-100">
+                      <div className="flex flex-wrap gap-2">
+                        {selectedPatient.abnormalIndicators.map((indicator, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 text-xs bg-white text-danger-700 rounded-md border border-danger-200"
+                          >
+                            {indicator}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <PhoneCall size={16} className="text-success-500" />
+                    联系方式
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl text-sm">
+                    <div>
+                      <p className="text-slate-500 mb-1">本人电话</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.phone || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">住址</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.address || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">家属联系人</p>
+                      <p className="font-medium text-slate-700">{selectedPatient?.familyContact || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 mb-1">家属电话</p>
+                      <p className="font-medium text-primary-600">{selectedPatient?.familyPhone || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPatient?.note && (
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                      <FileText size={16} className="text-slate-500" />
+                      备注
+                    </h4>
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-sm text-slate-600">{selectedPatient.note}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

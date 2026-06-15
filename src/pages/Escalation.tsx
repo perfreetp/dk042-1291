@@ -32,7 +32,7 @@ import { formatDateTime, formatRelativeTime } from "@/utils/date";
 import { cn } from "@/lib/utils";
 import type { EscalationRecord, EscalationLevel } from "@/types/escalation";
 
-type TabType = "pending" | "processing" | "resolved" | "all";
+type TabType = "pending" | "processing" | "resolved" | "unresolved" | "all";
 
 export default function Escalation() {
   const [activeTab, setActiveTab] = useState<TabType>("pending");
@@ -42,17 +42,6 @@ export default function Escalation() {
   const [showEscalateModal, setShowEscalateModal] = useState(false);
   const [escalateLevel, setEscalateLevel] = useState<EscalationLevel>("level2");
   const [escalateReason, setEscalateReason] = useState("");
-
-  // 让本地Tab和store.filterStatus双向同步，支持从日终汇总跳转
-  useEffect(() => {
-    if (filterStatus === "closed") return;
-    setActiveTab(filterStatus as TabType);
-  }, [filterStatus]);
-
-  const handleChangeTab = (tab: TabType) => {
-    setActiveTab(tab);
-    setFilterStatus(tab as EscalationStatus | "all");
-  };
 
   const {
     records,
@@ -68,15 +57,38 @@ export default function Escalation() {
   const { getPatientById } = usePatientStore();
   const { updateTask, getTaskById } = useTaskStore();
 
+  useEffect(() => {
+    if (filterStatus === "closed") return;
+    if (filterStatus === "unresolved") {
+      setActiveTab("unresolved");
+      return;
+    }
+    const validTabs: TabType[] = ["pending", "processing", "resolved", "all"];
+    if (validTabs.includes(filterStatus as TabType)) {
+      setActiveTab(filterStatus as TabType);
+    }
+  }, [filterStatus]);
+
+  const handleChangeTab = (tab: TabType) => {
+    setActiveTab(tab);
+    if (tab === "unresolved") {
+      setFilterStatus("unresolved" as EscalationStatus | "all");
+    } else {
+      setFilterStatus(tab as EscalationStatus | "all");
+    }
+  };
+
   const selectedRecord = selectedRecordId ? getRecordById(selectedRecordId) : null;
 
   const pendingCount = records.filter((r) => r.status === "pending").length;
   const processingCount = records.filter((r) => r.status === "processing").length;
   const resolvedCount = records.filter((r) => r.status === "resolved").length;
+  const unresolvedCount = records.filter((r) => r.status !== "resolved" && r.status !== "closed").length;
 
   const filteredRecords = records
     .filter((record) => {
       if (activeTab === "all") return true;
+      if (activeTab === "unresolved") return record.status !== "resolved" && record.status !== "closed";
       return record.status === activeTab;
     })
     .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
@@ -130,6 +142,7 @@ export default function Escalation() {
     { key: "pending", label: "待处理", count: pendingCount, color: "text-warning-600" },
     { key: "processing", label: "处理中", count: processingCount, color: "text-primary-600" },
     { key: "resolved", label: "已解决", count: resolvedCount, color: "text-success-600" },
+    { key: "unresolved", label: "未完成", count: unresolvedCount, color: "text-danger-600" },
     { key: "all", label: "全部", count: records.length, color: "text-slate-600" },
   ];
 

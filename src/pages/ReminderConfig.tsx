@@ -107,7 +107,7 @@ export default function ReminderConfig() {
   const handleAddRule = () => {
     setRuleForm({
       ruleName: "",
-      ruleType: "prenatal_check",
+      ruleType: "prenatal",
       priority: "medium",
       advanceDays: 1,
       maxRetryCount: 3,
@@ -131,9 +131,27 @@ export default function ReminderConfig() {
     if (editingRule) {
       updateRule(editingRule, ruleForm);
     } else {
+      const ruleTypeToTaskType: Record<string, string> = {
+        prenatal: "prenatal_check",
+        abnormal: "abnormal_index",
+        followup: "follow_up",
+        revisit: "revisit_miss",
+        custom: "follow_up",
+      };
       const newRule: ReminderRule = {
-        ...ruleForm as ReminderRule,
         id: `R${Date.now()}`,
+        ruleName: ruleForm.ruleName || "",
+        ruleType: (ruleForm.ruleType as ReminderRuleType) || "custom",
+        taskType: (ruleForm.taskType || ruleTypeToTaskType[ruleForm.ruleType || "custom"] || "follow_up") as ReminderRule["taskType"],
+        triggerCondition: ruleForm.triggerCondition || "",
+        advanceDays: ruleForm.advanceDays ?? 1,
+        enabled: ruleForm.enabled ?? true,
+        smsTemplate: ruleForm.smsTemplate || "",
+        callScript: ruleForm.callScript || "",
+        priority: ruleForm.priority || "medium",
+        retryInterval: ruleForm.retryInterval ?? 120,
+        maxRetryCount: ruleForm.maxRetryCount ?? 3,
+        description: ruleForm.description || "",
         createTime: new Date().toISOString(),
         updateTime: new Date().toISOString(),
       };

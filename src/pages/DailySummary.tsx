@@ -300,7 +300,7 @@ export default function DailySummary() {
             <button
               onClick={() => {
                 const store = useEscalationStore.getState();
-                store.setFilterStatus("all");
+                store.setFilterStatus("unresolved" as any);
                 navigate("/escalation");
               }}
               className="group text-left p-4 rounded-xl bg-danger-50 border-2 border-danger-100 hover:border-danger-300 hover:shadow-md transition-all"
